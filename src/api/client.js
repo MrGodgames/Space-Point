@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://46.138.243.148:4000";
 
 const getToken = () => localStorage.getItem("token");
 
@@ -64,4 +65,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ content }),
     }),
+  speedTest: async (bytes = 200000) => {
+    const response = await fetch(`${API_URL}/api/speedtest?bytes=${bytes}`, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error("Ошибка запроса");
+    }
+
+    const buffer = await response.arrayBuffer();
+    return { sizeBytes: buffer.byteLength };
+  },
 };

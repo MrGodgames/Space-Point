@@ -1,4 +1,34 @@
-function NavigationRail({ quickActions, account, onOpenSettings }) {
+import { useState } from "react";
+
+function NavigationRail({
+  quickActions,
+  account,
+  connectionSpeedMbps,
+  isSpeedChecking,
+  onCheckSpeed,
+  onOpenSettings,
+}) {
+  const [showConnectionSpeed, setShowConnectionSpeed] = useState(false);
+  const hasSpeed = Number.isFinite(connectionSpeedMbps);
+  const connectionSpeed = hasSpeed
+    ? `${connectionSpeedMbps.toFixed(1)} Мбит/с`
+    : "—";
+  const maxSpeedMbps = 1000;
+  const signalPercent = hasSpeed
+    ? Math.min(100, Math.max(0, (connectionSpeedMbps / maxSpeedMbps) * 100))
+    : 0;
+  const signalPercentLabel = hasSpeed ? `${signalPercent.toFixed(1)}%` : "--%";
+
+  const toggleConnectionSpeed = () => {
+    setShowConnectionSpeed((prev) => {
+      const next = !prev;
+      if (!prev) {
+        onCheckSpeed?.();
+      }
+      return next;
+    });
+  };
+
   return (
     <aside className="rail">
       <div className="rail-section">
@@ -16,12 +46,24 @@ function NavigationRail({ quickActions, account, onOpenSettings }) {
       </div>
 
       <div className="signal-card">
-        <p className="signal-title">Целостность сигнала</p>
-        <p className="signal-value">98.6%</p>
+        <button
+          className="signal-title signal-title-button"
+          type="button"
+          onClick={toggleConnectionSpeed}
+        >
+          Целостность сигнала
+        </button>
+        <p className="signal-value">{signalPercentLabel}</p>
         <div className="signal-bar">
-          <span />
+          <span style={{ width: `${signalPercent}%` }} />
         </div>
-        <p className="signal-meta">Аномалий не обнаружено</p>
+        <p className="signal-meta">
+          {showConnectionSpeed
+            ? isSpeedChecking
+              ? "Измерение скорости..."
+              : `Скорость подключения: ${connectionSpeed}`
+            : "Аномалий не обнаружено"}
+        </p>
       </div>
 
       {account && (

@@ -13,6 +13,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background: radial-gradient(circle at top, #0c1a33 0%, #06070f 55%, #02030a 100%);
+  overflow: hidden;
 }
 
 #root {
@@ -248,6 +249,15 @@ body,
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: rgba(236, 242, 255, 0.6);
+}
+
+.signal-title-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .signal-value {
@@ -660,6 +670,11 @@ body,
   gap: 10px;
   overflow-y: auto;
   min-height: 0;
+  scrollbar-width: none;
+}
+
+.chat-body::-webkit-scrollbar {
+  display: none;
 }
 
 .message {

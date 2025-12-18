@@ -14,6 +14,54 @@ function ChatPanel({
 }) {
   const [draft, setDraft] = useState("");
   const typingTimeout = useRef(null);
+  const chatBodyRef = useRef(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeout.current) {
+        clearTimeout(typingTimeout.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = chatBodyRef.current;
+    if (!container) {
+      return;
+    }
+
+    const threshold = 120;
+    const updatePosition = () => {
+      const distance =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      setIsAtBottom(distance <= threshold);
+    };
+
+    container.addEventListener("scroll", updatePosition);
+    updatePosition();
+
+    return () => {
+      container.removeEventListener("scroll", updatePosition);
+    };
+  }, [thread?.id]);
+
+  useEffect(() => {
+    const container = chatBodyRef.current;
+    if (!container || !isAtBottom) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [messages, isLoading, thread?.id, isAtBottom]);
+
+  useEffect(() => {
+    setIsAtBottom(true);
+  }, [thread?.id]);
 
   if (!thread) {
     return (
@@ -38,14 +86,6 @@ function ChatPanel({
     event.preventDefault();
     sendDraft();
   };
-
-  useEffect(() => {
-    return () => {
-      if (typingTimeout.current) {
-        clearTimeout(typingTimeout.current);
-      }
-    };
-  }, []);
 
   return (
     <section className="chat">
@@ -76,7 +116,7 @@ function ChatPanel({
         <span>Защищено</span>
       </div>
 
-      <div className="chat-body">
+      <div className="chat-body" ref={chatBodyRef}>
         {isLoading ? (
           <div className="empty-state">Загрузка сообщений...</div>
         ) : messages.length === 0 ? (

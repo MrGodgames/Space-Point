@@ -33,6 +33,17 @@ process.on("uncaughtException", (error) => {
 app.use(cors());
 app.use(express.json());
 
+app.get("/api/speedtest", (req, res) => {
+  const requested = Number.parseInt(req.query.bytes, 10);
+  const safeSize = Number.isFinite(requested) ? requested : 200000;
+  const payloadSize = Math.min(Math.max(safeSize, 1024), 1000000);
+  const payload = Buffer.alloc(payloadSize, "a");
+
+  res.set("Content-Type", "application/octet-stream");
+  res.set("Cache-Control", "no-store");
+  res.send(payload);
+});
+
 const createToken = (user) =>
   jwt.sign({ id: user.id, login: user.login }, process.env.JWT_SECRET, {
     expiresIn: "7d",

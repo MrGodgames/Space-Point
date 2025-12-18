@@ -10,7 +10,8 @@ import UserModal from "./components/UserModal";
 import { api } from "./api/client";
 import { quickActions } from "./data/mockData";
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const SOCKET_URL =
+  import.meta.env.VITE_API_URL || "http://46.138.243.148:4000";
 
 const formatAccount = (user) => ({
   name: `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`,
@@ -41,6 +42,8 @@ function App() {
   const [isDirectOpen, setIsDirectOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [typingByChat, setTypingByChat] = useState({});
+  const [connectionSpeedMbps, setConnectionSpeedMbps] = useState(null);
+  const [isSpeedChecking, setIsSpeedChecking] = useState(false);
   const socketRef = useRef(null);
   const activeThreadIdRef = useRef(null);
   const userRef = useRef(null);
@@ -56,6 +59,24 @@ function App() {
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  const handleCheckSpeed = async () => {
+    if (isSpeedChecking) {
+      return;
+    }
+    setIsSpeedChecking(true);
+    try {
+      const start = performance.now();
+      const { sizeBytes } = await api.speedTest(200000);
+      const durationMs = performance.now() - start;
+      const mbps = (sizeBytes * 8) / (durationMs / 1000) / 1_000_000;
+      setConnectionSpeedMbps(mbps);
+    } catch (error) {
+      setConnectionSpeedMbps(null);
+    } finally {
+      setIsSpeedChecking(false);
+    }
+  };
 
   const loadChats = async (nextActiveId) => {
     const data = await api.chats();
@@ -519,6 +540,9 @@ function App() {
             <NavigationRail
               quickActions={quickActions}
               account={account}
+              connectionSpeedMbps={connectionSpeedMbps}
+              isSpeedChecking={isSpeedChecking}
+              onCheckSpeed={handleCheckSpeed}
               onOpenSettings={() => setIsAccountOpen(true)}
             />
             <ConversationList
