@@ -1,12 +1,21 @@
 import "dotenv/config";
+import http from "http";
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { Server } from "socket.io";
 import { pool } from "./db.js";
 import { authMiddleware } from "./middleware/auth.js";
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+});
+
 const PORT = process.env.PORT || 4000;
 
 if (!process.env.JWT_SECRET) {
@@ -20,6 +29,195 @@ const createToken = (user) =>
   jwt.sign({ id: user.id, login: user.login }, process.env.JWT_SECRET, {
     expiresIn: "7d",
   });
+
+const onlineUsers = new Map();
+
+const addSocket = (userId, socketId) => {
+  if (!onlineUsers.has(userId)) {
+    onlineUsers.set(userId, new Set());
+  }
+  onlineUsers.get(userId).add(socketId);
+};
+
+const removeSocket = (userId, socketId) => {
+  const sockets = onlineUsers.get(userId);
+  if (!sockets) {
+    return false;
+  }
+  sockets.delete(socketId);
+  if (sockets.size === 0) {
+    onlineUsers.delete(userId);
+    return true;
+  }
+  return false;
+};
+
+const emitToUser = (userId, event, payload) => {
+  const sockets = onlineUsers.get(userId);
+  if (!sockets) {
+    return;
+  }
+  sockets.forEach((socketId) => {
+    io.to(socketId).emit(event, payload);
+  });
+};
+
+const formatChatRow = (chat) => ({
+  id: chat.id,
+  title: chat.is_direct ? chat.direct_title || chat.title : chat.title,
+  status: chat.status,
+  location: chat.is_direct ? "Личный чат" : chat.location,
+  members: `${chat.members} участников`,
+  preview: chat.last_message || "Нет сообщений",
+  time: chat.last_message_at
+    ? new Date(chat.last_message_at).toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "",
+  unread: 0,
+  is_direct: chat.is_direct,
+});
+
+const fetchChatForUser = async (chatId, userId) => {
+  const result = await pool.query(
+    `SELECT
+      chats.id,
+      chats.title,
+      chats.status,
+      chats.location,
+      chats.is_direct,
+      COUNT(DISTINCT chat_members.user_id)::int AS members,
+      MAX(messages.created_at) AS last_message_at,
+      (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
+      MAX(
+        CASE
+          WHEN chats.is_direct AND users.id <> $2 THEN
+            COALESCE(NULLIF(TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, '')), ''), users.login)
+        END
+      ) AS direct_title
+    FROM chats
+    JOIN chat_members ON chat_members.chat_id = chats.id
+    JOIN users ON users.id = chat_members.user_id
+    LEFT JOIN messages ON messages.chat_id = chats.id
+    WHERE chat_members.user_id = $2 AND chats.id = $1
+    GROUP BY chats.id`,
+    [chatId, userId]
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return formatChatRow(result.rows[0]);
+};
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) {
+    return next(new Error("Нет токена"));
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    socket.user = payload;
+    return next();
+  } catch (error) {
+    return next(new Error("Невалидный токен"));
+  }
+});
+
+io.on("connection", async (socket) => {
+  const userId = socket.user.id;
+  addSocket(userId, socket.id);
+
+  io.emit("presence:update", { userId, status: "online" });
+
+  socket.on("join_chats", ({ chatIds }) => {
+    if (!Array.isArray(chatIds)) {
+      return;
+    }
+    chatIds.forEach((chatId) => {
+      socket.join(`chat:${chatId}`);
+    });
+  });
+
+  socket.on("typing", async ({ chatId, isTyping }) => {
+    if (!chatId) {
+      return;
+    }
+    try {
+      const userResult = await pool.query(
+        `SELECT first_name, last_name, login FROM users WHERE id = $1`,
+        [userId]
+      );
+      const user = userResult.rows[0];
+      const name = user
+        ? user.first_name
+          ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`
+          : user.login
+        : "";
+
+      socket.to(`chat:${chatId}`).emit("typing", {
+        chatId,
+        userId,
+        name,
+        isTyping: Boolean(isTyping),
+      });
+    } catch (error) {
+      // ignore
+    }
+  });
+
+  socket.on("read_messages", async ({ chatId }) => {
+    if (!chatId) {
+      return;
+    }
+
+    try {
+      const unreadResult = await pool.query(
+        `SELECT messages.id
+         FROM messages
+         WHERE messages.chat_id = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM message_reads
+           WHERE message_reads.message_id = messages.id
+           AND message_reads.user_id = $2
+         )`,
+        [chatId, userId]
+      );
+
+      const unreadIds = unreadResult.rows.map((row) => row.id);
+      if (unreadIds.length === 0) {
+        return;
+      }
+
+      await pool.query(
+        `INSERT INTO message_reads (message_id, user_id)
+         SELECT id, $2
+         FROM messages
+         WHERE chat_id = $1
+         ON CONFLICT DO NOTHING`,
+        [chatId, userId]
+      );
+
+      io.to(`chat:${chatId}`).emit("message:read", {
+        chatId,
+        userId,
+        messageIds: unreadIds,
+      });
+    } catch (error) {
+      // ignore
+    }
+  });
+
+  socket.on("disconnect", () => {
+    const isOffline = removeSocket(userId, socket.id);
+    if (isOffline) {
+      io.emit("presence:update", { userId, status: "offline" });
+    }
+  });
+});
 
 app.post("/api/auth/register", async (req, res) => {
   const { email, login, password, firstName, lastName } = req.body;
@@ -61,10 +259,18 @@ app.post("/api/auth/register", async (req, res) => {
       [chatResult.rows[0].id, user.id]
     );
 
-    await pool.query(
+    const welcomeResult = await pool.query(
       `INSERT INTO messages (chat_id, user_id, content)
-       VALUES ($1, $2, $3)`,
+       VALUES ($1, $2, $3)
+       RETURNING id`,
       [chatResult.rows[0].id, user.id, "Добро пожаловать!"]
+    );
+
+    await pool.query(
+      `INSERT INTO message_reads (message_id, user_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [welcomeResult.rows[0].id, user.id]
     );
 
     const token = createToken({ id: user.id, login: user.login });
@@ -145,7 +351,7 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
         chats.status,
         chats.location,
         chats.is_direct,
-        COUNT(chat_members.user_id)::int AS members,
+      COUNT(DISTINCT chat_members.user_id)::int AS members,
         MAX(messages.created_at) AS last_message_at,
         (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
         MAX(
@@ -164,22 +370,7 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
       [req.user.id]
     );
 
-    const chats = result.rows.map((chat) => ({
-      id: chat.id,
-      title: chat.is_direct ? chat.direct_title || chat.title : chat.title,
-      status: chat.status,
-      location: chat.is_direct ? "Личный чат" : chat.location,
-      members: `${chat.members} участников`,
-      preview: chat.last_message || "Нет сообщений",
-      time: chat.last_message_at
-        ? new Date(chat.last_message_at).toLocaleTimeString("ru-RU", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "",
-      unread: 0,
-      is_direct: chat.is_direct,
-    }));
+    const chats = result.rows.map(formatChatRow);
 
     return res.json({ chats });
   } catch (error) {
@@ -205,13 +396,17 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT messages.id, messages.content, messages.created_at,
-              users.first_name, users.last_name, users.login
+      `SELECT messages.id, messages.content, messages.created_at, messages.user_id,
+              users.first_name, users.last_name, users.login,
+              COUNT(message_reads.user_id) FILTER (WHERE message_reads.user_id <> messages.user_id) AS read_by_count,
+              BOOL_OR(message_reads.user_id = $2) AS is_read
        FROM messages
        LEFT JOIN users ON users.id = messages.user_id
+       LEFT JOIN message_reads ON message_reads.message_id = messages.id
        WHERE messages.chat_id = $1
+       GROUP BY messages.id, users.first_name, users.last_name, users.login
        ORDER BY messages.created_at ASC`,
-      [chatId]
+      [chatId, req.user.id]
     );
 
     const messages = result.rows.map((message) => ({
@@ -225,7 +420,9 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
         hour: "2-digit",
         minute: "2-digit",
       }),
-      isSelf: message.login === req.user.login,
+      user_id: message.user_id,
+      readByCount: Number(message.read_by_count || 0),
+      isRead: message.is_read,
     }));
 
     return res.json({ messages });
@@ -244,7 +441,7 @@ app.post("/api/chats", authMiddleware, async (req, res) => {
     const chatResult = await pool.query(
       `INSERT INTO chats (title, created_by)
        VALUES ($1, $2)
-       RETURNING id, title, status, location`,
+       RETURNING id, title, status, location, is_direct`,
       [title, req.user.id]
     );
 
@@ -313,6 +510,11 @@ app.post("/api/chats/direct", authMiddleware, async (req, res) => {
       [chatResult.rows[0].id, req.user.id, target.id]
     );
 
+    const chatForTarget = await fetchChatForUser(chatResult.rows[0].id, target.id);
+    if (chatForTarget) {
+      emitToUser(target.id, "chat:added", { chat: chatForTarget });
+    }
+
     return res.status(201).json({ chat: chatResult.rows[0] });
   } catch (error) {
     return res.status(500).json({ error: "Ошибка сервера" });
@@ -346,12 +548,19 @@ app.post("/api/chats/:id/members", authMiddleware, async (req, res) => {
       return res.status(404).json({ error: "Пользователь не найден" });
     }
 
+    const targetId = userResult.rows[0].id;
+
     await pool.query(
       `INSERT INTO chat_members (chat_id, user_id)
        VALUES ($1, $2)
        ON CONFLICT DO NOTHING`,
-      [chatId, userResult.rows[0].id]
+      [chatId, targetId]
     );
+
+    const chatForTarget = await fetchChatForUser(chatId, targetId);
+    if (chatForTarget) {
+      emitToUser(targetId, "chat:added", { chat: chatForTarget });
+    }
 
     return res.status(201).json({ success: true });
   } catch (error) {
@@ -408,12 +617,56 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
       [chatId, req.user.id, content]
     );
 
+    const messageId = result.rows[0].id;
+
+    await pool.query(
+      `INSERT INTO message_reads (message_id, user_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [messageId, req.user.id]
+    );
+
+    const userResult = await pool.query(
+      `SELECT first_name, last_name, login FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+    const user = userResult.rows[0];
+    const author = user.first_name
+      ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`
+      : user.login;
+
+    const payload = {
+      id: messageId,
+      chatId,
+      author,
+      role: "",
+      content: result.rows[0].content,
+      time: new Date(result.rows[0].created_at).toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      user_id: req.user.id,
+      readByCount: 0,
+      isRead: true,
+    };
+
+    io.to(`chat:${chatId}`).emit("message:new", {
+      chatId,
+      message: payload,
+    });
+
+    io.to(`chat:${chatId}`).emit("chat:updated", {
+      chatId,
+      preview: payload.content,
+      time: payload.time,
+    });
+
     return res.status(201).json({ message: result.rows[0] });
   } catch (error) {
     return res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`API listening on ${PORT}`);
 });

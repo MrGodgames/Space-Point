@@ -35,3 +35,10 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+
+CREATE TABLE IF NOT EXISTS message_reads (
+  message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  PRIMARY KEY (message_id, user_id)
+);

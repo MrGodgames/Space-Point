@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function ChatPanel({
   messages,
@@ -8,8 +8,12 @@ function ChatPanel({
   onSend,
   isLoading,
   onAddMember,
+  onTyping,
+  typingUsers = [],
+  currentUserId,
 }) {
   const [draft, setDraft] = useState("");
+  const typingTimeout = useRef(null);
 
   if (!thread) {
     return (
@@ -27,12 +31,21 @@ function ChatPanel({
 
     onSend?.(trimmed);
     setDraft("");
+    onTyping?.(false);
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
     sendDraft();
   };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeout.current) {
+        clearTimeout(typingTimeout.current);
+      }
+    };
+  }, []);
 
   return (
     <section className="chat">
@@ -47,7 +60,7 @@ function ChatPanel({
             <p className="chat-title">{thread.title}</p>
           </div>
           <p className="chat-sub">
-            {thread.members} · {thread.location}
+            {thread.is_direct ? thread.location : `${thread.members} · ${thread.location}`}
           </p>
         </div>
         {!thread.is_direct && (
@@ -69,27 +82,41 @@ function ChatPanel({
         ) : messages.length === 0 ? (
           <div className="empty-state">Сообщений пока нет</div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id ?? `${message.author}-${message.time}`}
-              className={`message ${message.isSelf ? "self" : ""}`}
-            >
-              <div className="avatar">
-                {message.author
-                  .split(" ")
-                  .map((part) => part[0])
-                  .join("")}
-              </div>
-              <div className="bubble">
-                <div className="bubble-head">
-                  <span>{message.author}</span>
-                  <span>{message.role}</span>
+          messages.map((message) => {
+            const isSelf =
+              message.isSelf ?? message.user_id === currentUserId;
+
+            return (
+              <div
+                key={message.id ?? `${message.author}-${message.time}`}
+                className={`message ${isSelf ? "self" : ""}`}
+              >
+                <div className="avatar">
+                  {message.author
+                    .split(" ")
+                    .map((part) => part[0])
+                    .join("")}
                 </div>
-                <p>{message.content}</p>
-                <div className="bubble-time">{message.time}</div>
+                <div className="bubble">
+                  <div className="bubble-head">
+                    <span>{message.author}</span>
+                    <span>{message.role}</span>
+                  </div>
+                  <p>{message.content}</p>
+                  <div className="bubble-time">
+                    {message.time}
+                    {isSelf && (
+                      <span className="read-status">
+                        {message.readByCount > 0
+                          ? " · Прочитано"
+                          : " · Доставлено"}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -99,7 +126,16 @@ function ChatPanel({
             <input
               type="text"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                onTyping?.(true);
+                if (typingTimeout.current) {
+                  clearTimeout(typingTimeout.current);
+                }
+                typingTimeout.current = setTimeout(() => {
+                  onTyping?.(false);
+                }, 1200);
+              }}
               placeholder={`Передать: ${thread.title}`}
             />
             <button className="icon-button" aria-label="Отправить">
@@ -107,6 +143,11 @@ function ChatPanel({
             </button>
           </form>
         </div>
+        {typingUsers.length > 0 && (
+          <div className="typing-indicator">
+            {typingUsers.join(", ")} печатает...
+          </div>
+        )}
         <div className="composer-actions">
           <button className="primary" type="button" onClick={sendDraft}>
             Отправить импульс

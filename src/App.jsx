@@ -1,5 +1,6 @@
 import "./App.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
 import Backdrop from "./components/Backdrop";
 import NavigationRail from "./components/NavigationRail";
 import ConversationList from "./components/ConversationList";
@@ -8,6 +9,8 @@ import AccountModal from "./components/AccountModal";
 import UserModal from "./components/UserModal";
 import { api } from "./api/client";
 import { quickActions } from "./data/mockData";
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 const formatAccount = (user) => ({
   name: `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`,
@@ -30,15 +33,29 @@ function App() {
   const [lastNameValue, setLastNameValue] = useState("");
   const [authError, setAuthError] = useState("");
   const [account, setAccount] = useState(null);
+  const [user, setUser] = useState(null);
   const [threads, setThreads] = useState([]);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isDirectOpen, setIsDirectOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [typingByChat, setTypingByChat] = useState({});
+  const socketRef = useRef(null);
+  const activeThreadIdRef = useRef(null);
+  const userRef = useRef(null);
 
   const activeThread =
     threads.find((thread) => thread.id === activeThreadId) ?? null;
+  const activeTyping = activeThreadId ? typingByChat[activeThreadId] || [] : [];
+
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId;
+  }, [activeThreadId]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const loadChats = async (nextActiveId) => {
     const data = await api.chats();
@@ -49,6 +66,10 @@ function App() {
     } else {
       setActiveThreadId(null);
     }
+
+    socketRef.current?.emit("join_chats", {
+      chatIds: data.chats.map((chat) => chat.id),
+    });
   };
 
   useEffect(() => {
@@ -83,6 +104,7 @@ function App() {
 
       try {
         const me = await api.me();
+        setUser(me.user);
         setAccount(formatAccount(me.user));
         setIsAuth(true);
         await loadChats();
@@ -98,6 +120,105 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!isAuth) {
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return;
+    }
+
+    const socket = io(SOCKET_URL, { auth: { token } });
+    socketRef.current = socket;
+
+    socket.on("message:new", ({ chatId, message }) => {
+      const currentUser = userRef.current;
+      const isSelf = message.user_id === currentUser?.id;
+      const enriched = {
+        ...message,
+        isSelf,
+        readByCount: message.readByCount ?? 0,
+        isRead: message.isRead ?? isSelf,
+      };
+
+      setThreads((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId
+            ? { ...chat, preview: message.content, time: message.time }
+            : chat
+        )
+      );
+
+      if (chatId === activeThreadIdRef.current) {
+        setMessages((prev) => [...prev, enriched]);
+        if (!isSelf) {
+          socket.emit("read_messages", { chatId });
+        }
+      }
+    });
+
+    socket.on("message:read", ({ chatId, userId, messageIds }) => {
+      if (chatId !== activeThreadIdRef.current) {
+        return;
+      }
+
+      setMessages((prev) =>
+        prev.map((message) => {
+          if (!messageIds.includes(message.id)) {
+            return message;
+          }
+
+          if (userId === userRef.current?.id) {
+            return { ...message, isRead: true };
+          }
+
+          if (message.user_id === userRef.current?.id) {
+            return { ...message, readByCount: (message.readByCount || 0) + 1 };
+          }
+
+          return message;
+        })
+      );
+    });
+
+    socket.on("typing", ({ chatId, name, isTyping }) => {
+      setTypingByChat((prev) => {
+        const current = new Set(prev[chatId] || []);
+        if (isTyping) {
+          current.add(name);
+        } else {
+          current.delete(name);
+        }
+        return { ...prev, [chatId]: Array.from(current) };
+      });
+    });
+
+    socket.on("chat:added", ({ chat }) => {
+      setThreads((prev) => {
+        if (prev.find((item) => item.id === chat.id)) {
+          return prev;
+        }
+        return [chat, ...prev];
+      });
+      socket.emit("join_chats", { chatIds: [chat.id] });
+    });
+
+    socket.on("chat:updated", ({ chatId, preview, time }) => {
+      setThreads((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId ? { ...chat, preview, time } : chat
+        )
+      );
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [isAuth]);
+
+  useEffect(() => {
     const fetchMessages = async () => {
       if (!activeThreadId || !isAuth) {
         setMessages([]);
@@ -107,7 +228,13 @@ function App() {
       setIsChatLoading(true);
       try {
         const data = await api.messages(activeThreadId);
-        setMessages(data.messages);
+        const currentUser = userRef.current;
+        const mapped = data.messages.map((message) => ({
+          ...message,
+          isSelf: message.user_id === currentUser?.id,
+        }));
+        setMessages(mapped);
+        socketRef.current?.emit("read_messages", { chatId: activeThreadId });
       } catch (error) {
         setMessages([]);
       } finally {
@@ -152,6 +279,7 @@ function App() {
       }
 
       localStorage.setItem("token", data.token);
+      setUser(data.user);
       setAccount(formatAccount(data.user));
       setIsAuth(true);
       await loadChats();
@@ -164,10 +292,12 @@ function App() {
     localStorage.removeItem("token");
     setIsAuth(false);
     setAccount(null);
+    setUser(null);
     setThreads([]);
     setMessages([]);
     setActiveThreadId(null);
     setIsAccountOpen(false);
+    setTypingByChat({});
     setLoginValue("");
     setPasswordValue("");
     setConfirmPasswordValue("");
@@ -189,6 +319,13 @@ function App() {
     } catch (error) {
       // ignore
     }
+  };
+
+  const handleTyping = (isTyping) => {
+    if (!activeThreadId) {
+      return;
+    }
+    socketRef.current?.emit("typing", { chatId: activeThreadId, isTyping });
   };
 
   if (isLoading) {
@@ -371,6 +508,9 @@ function App() {
                 onBack={() => setShowChat(false)}
                 onSend={handleSendMessage}
                 onAddMember={() => setIsAddMemberOpen(true)}
+                onTyping={handleTyping}
+                typingUsers={activeTyping}
+                currentUserId={user?.id}
               />
             )}
           </>
@@ -402,6 +542,9 @@ function App() {
               isLoading={isChatLoading}
               onSend={handleSendMessage}
               onAddMember={() => setIsAddMemberOpen(true)}
+              onTyping={handleTyping}
+              typingUsers={activeTyping}
+              currentUserId={user?.id}
             />
           </>
         )}

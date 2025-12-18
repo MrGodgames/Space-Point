@@ -34,7 +34,12 @@ function UserModal({ title, placeholder, isOpen, onClose, onSubmit }) {
             <p className="modal-title">{title}</p>
             <p className="modal-sub">Введите логин пользователя</p>
           </div>
-          <button className="icon-button" onClick={onClose} type="button">
+          <button
+            className="icon-button"
+            onClick={onClose}
+            type="button"
+            aria-label="Закрыть"
+          >
             ×
           </button>
         </div>
