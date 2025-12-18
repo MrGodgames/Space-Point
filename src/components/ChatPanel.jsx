@@ -49,13 +49,18 @@ function ChatPanel({ messages, thread, isMobile, onBack }) {
 
       <footer className="composer">
         <div className="composer-input">
-          <input type="text" placeholder={`Передать: ${thread.title}`} />
-          <button className="icon-button" aria-label="Прикрепить медиа">
+          <button className="icon-button composer-attach" type="button" aria-label="Прикрепить файл">
             +
           </button>
-        </div>
-        <div className="composer-actions">
-          <button className="primary">Отправить импульс</button>
+          <input type="text" placeholder={`Передать: ${thread.title}`} />
+          <button className="primary composer-send" type="button" aria-label="Отправить сообщение">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M3 11.4l16.2-6.7a.7.7 0 0 1 .9.9L13.4 21a.7.7 0 0 1-1.3-.1l-1.6-5-5-1.6a.7.7 0 0 1-.1-1.3z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
         </div>
       </footer>
     </section>
