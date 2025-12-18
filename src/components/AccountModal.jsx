@@ -1,4 +1,4 @@
-function AccountModal({ account, isOpen, onClose }) {
+function AccountModal({ account, isOpen, onClose, onLogout }) {
   if (!isOpen) {
     return null;
   }
@@ -31,6 +31,9 @@ function AccountModal({ account, isOpen, onClose }) {
         <div className="modal-actions">
           <button className="ghost" type="button">Сменить статус</button>
           <button className="ghost" type="button">Устройства</button>
+          <button className="ghost" type="button" onClick={onLogout}>
+            Выйти
+          </button>
           <button className="primary" type="button">Сохранить</button>
         </div>
       </div>
