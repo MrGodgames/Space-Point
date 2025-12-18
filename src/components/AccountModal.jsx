@@ -20,14 +20,18 @@ function AccountModal({ account, isOpen, onClose, onLogout }) {
             ×
           </button>
         </div>
-        <div className="modal-profile">
-          <div className="avatar">{account.name.split(" ").map((part) => part[0]).join("")}</div>
-          <div>
-            <p className="modal-name">{account.name}</p>
-            <p className="modal-handle">{account.handle}</p>
+        {account && (
+          <div className="modal-profile">
+            <div className="avatar">
+              {account.name.split(" ").map((part) => part[0]).join("")}
+            </div>
+            <div>
+              <p className="modal-name">{account.name}</p>
+              <p className="modal-handle">{account.handle}</p>
+            </div>
+            <span className="modal-status">{account.status}</span>
           </div>
-          <span className="modal-status">{account.status}</span>
-        </div>
+        )}
         <div className="modal-actions">
           <button className="ghost" type="button">Сменить статус</button>
           <button className="ghost" type="button">Устройства</button>

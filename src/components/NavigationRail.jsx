@@ -24,23 +24,25 @@ function NavigationRail({ quickActions, account, onOpenSettings }) {
         <p className="signal-meta">Аномалий не обнаружено</p>
       </div>
 
-      <div className="account-card">
-        <div className="account-info">
-          <div className="avatar">
-            {account.name
-              .split(" ")
-              .map((part) => part[0])
-              .join("")}
+      {account && (
+        <div className="account-card">
+          <div className="account-info">
+            <div className="avatar">
+              {account.name
+                .split(" ")
+                .map((part) => part[0])
+                .join("")}
+            </div>
+            <div>
+              <p className="account-name">{account.name}</p>
+              <p className="account-handle">{account.handle}</p>
+            </div>
           </div>
-          <div>
-            <p className="account-name">{account.name}</p>
-            <p className="account-handle">{account.handle}</p>
-          </div>
+          <button className="ghost" type="button" onClick={onOpenSettings}>
+            Настройки
+          </button>
         </div>
-        <button className="ghost" type="button" onClick={onOpenSettings}>
-          Настройки
-        </button>
-      </div>
+      )}
 
     </aside>
   );

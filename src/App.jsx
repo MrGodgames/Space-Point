@@ -5,11 +5,18 @@ import NavigationRail from "./components/NavigationRail";
 import ConversationList from "./components/ConversationList";
 import ChatPanel from "./components/ChatPanel";
 import AccountModal from "./components/AccountModal";
-import { threads, messages, quickActions, account } from "./data/mockData";
+import { api } from "./api/client";
+import { quickActions } from "./data/mockData";
+
+const formatAccount = (user) => ({
+  name: `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`,
+  handle: `@${user.login}`,
+  status: user.status || "Онлайн",
+});
 
 function App() {
   const [isMobile, setIsMobile] = useState(false);
-  const [activeThreadId, setActiveThreadId] = useState(threads[0]?.id);
+  const [activeThreadId, setActiveThreadId] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isAuth, setIsAuth] = useState(false);
@@ -21,6 +28,25 @@ function App() {
   const [firstNameValue, setFirstNameValue] = useState("");
   const [lastNameValue, setLastNameValue] = useState("");
   const [authError, setAuthError] = useState("");
+  const [account, setAccount] = useState(null);
+  const [threads, setThreads] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const activeThread =
+    threads.find((thread) => thread.id === activeThreadId) ?? null;
+
+  const loadChats = async (nextActiveId) => {
+    const data = await api.chats();
+    setThreads(data.chats);
+
+    if (data.chats.length > 0) {
+      setActiveThreadId((prev) => prev ?? nextActiveId ?? data.chats[0].id);
+    } else {
+      setActiveThreadId(null);
+    }
+  };
 
   useEffect(() => {
     const checkSize = () => {
@@ -44,35 +70,133 @@ function App() {
     setShowChat(false);
   }, [isMobile]);
 
-  const activeThread =
-    threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
-
-  const handleAuthSubmit = (event) => {
-    event.preventDefault();
-    setAuthError("");
-
-    if (authMode === "login") {
-      if (loginValue === "1" && passwordValue === "1") {
-        setIsAuth(true);
+  useEffect(() => {
+    const bootstrap = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setIsLoading(false);
         return;
       }
 
-      setAuthError("Неверный логин или пароль.");
-      return;
-    }
+      try {
+        const me = await api.me();
+        setAccount(formatAccount(me.user));
+        setIsAuth(true);
+        await loadChats();
+      } catch (error) {
+        localStorage.removeItem("token");
+        setIsAuth(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    if (!emailValue || !loginValue || !passwordValue || !firstNameValue) {
-      setAuthError("Заполните обязательные поля.");
-      return;
-    }
+    bootstrap();
+  }, []);
 
-    if (passwordValue !== confirmPasswordValue) {
-      setAuthError("Пароли не совпадают.");
-      return;
-    }
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!activeThreadId || !isAuth) {
+        setMessages([]);
+        return;
+      }
 
-    setIsAuth(true);
+      setIsChatLoading(true);
+      try {
+        const data = await api.messages(activeThreadId);
+        setMessages(data.messages);
+      } catch (error) {
+        setMessages([]);
+      } finally {
+        setIsChatLoading(false);
+      }
+    };
+
+    fetchMessages();
+  }, [activeThreadId, isAuth]);
+
+  const handleAuthSubmit = async (event) => {
+    event.preventDefault();
+    setAuthError("");
+
+    try {
+      let data;
+      if (authMode === "login") {
+        if (!loginValue || !passwordValue) {
+          setAuthError("Введите логин и пароль.");
+          return;
+        }
+
+        data = await api.login({ login: loginValue, password: passwordValue });
+      } else {
+        if (!emailValue || !loginValue || !passwordValue || !firstNameValue) {
+          setAuthError("Заполните обязательные поля.");
+          return;
+        }
+
+        if (passwordValue !== confirmPasswordValue) {
+          setAuthError("Пароли не совпадают.");
+          return;
+        }
+
+        data = await api.register({
+          email: emailValue,
+          login: loginValue,
+          password: passwordValue,
+          firstName: firstNameValue,
+          lastName: lastNameValue,
+        });
+      }
+
+      localStorage.setItem("token", data.token);
+      setAccount(formatAccount(data.user));
+      setIsAuth(true);
+      await loadChats();
+    } catch (error) {
+      setAuthError(error.message);
+    }
   };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setIsAuth(false);
+    setAccount(null);
+    setThreads([]);
+    setMessages([]);
+    setActiveThreadId(null);
+    setIsAccountOpen(false);
+    setLoginValue("");
+    setPasswordValue("");
+    setConfirmPasswordValue("");
+    setEmailValue("");
+    setFirstNameValue("");
+    setLastNameValue("");
+  };
+
+  const handleSendMessage = async (content) => {
+    if (!activeThreadId) {
+      return;
+    }
+
+    try {
+      await api.sendMessage(activeThreadId, content);
+      const data = await api.messages(activeThreadId);
+      setMessages(data.messages);
+      await loadChats(activeThreadId);
+    } catch (error) {
+      // ignore
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="auth">
+        <div className="auth-card">
+          <h1>Загрузка...</h1>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuth) {
     return (
@@ -179,25 +303,29 @@ function App() {
           <>
             {!showChat && (
               <header className="mobile-header">
-                <div className="mobile-account">
-                  <button
-                    className="account-pill"
-                    type="button"
-                    onClick={() => setIsAccountOpen(true)}
-                  >
-                    <span className="avatar">
-                      {account.name
-                        .split(" ")
-                        .map((part) => part[0])
-                        .join("")}
-                    </span>
-                    <span>
-                      <span className="account-name">{account.name}</span>
-                      <span className="account-handle">{account.handle}</span>
-                    </span>
-                  </button>
-                  <span className="account-status">{account.status}</span>
-                </div>
+                {account && (
+                  <div className="mobile-account">
+                    <button
+                      className="account-pill"
+                      type="button"
+                      onClick={() => setIsAccountOpen(true)}
+                    >
+                      <span className="avatar">
+                        {account.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")}
+                      </span>
+                      <span>
+                        <span className="account-name">{account.name}</span>
+                        <span className="account-handle">
+                          {account.handle}
+                        </span>
+                      </span>
+                    </button>
+                    <span className="account-status">{account.status}</span>
+                  </div>
+                )}
                 <div className="mobile-actions">
                   {quickActions.map((item, index) => (
                     <button
@@ -226,7 +354,9 @@ function App() {
                 messages={messages}
                 thread={activeThread}
                 isMobile
+                isLoading={isChatLoading}
                 onBack={() => setShowChat(false)}
+                onSend={handleSendMessage}
               />
             )}
           </>
@@ -242,7 +372,12 @@ function App() {
               activeId={activeThread?.id}
               onSelect={setActiveThreadId}
             />
-            <ChatPanel messages={messages} thread={activeThread} />
+            <ChatPanel
+              messages={messages}
+              thread={activeThread}
+              isLoading={isChatLoading}
+              onSend={handleSendMessage}
+            />
           </>
         )}
       </main>
@@ -250,16 +385,7 @@ function App() {
         account={account}
         isOpen={isAccountOpen}
         onClose={() => setIsAccountOpen(false)}
-        onLogout={() => {
-          setIsAuth(false);
-          setIsAccountOpen(false);
-          setLoginValue("");
-          setPasswordValue("");
-          setConfirmPasswordValue("");
-          setEmailValue("");
-          setFirstNameValue("");
-          setLastNameValue("");
-        }}
+        onLogout={handleLogout}
       />
     </div>
   );
