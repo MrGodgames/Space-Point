@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS chats (
   title TEXT NOT NULL,
   status TEXT DEFAULT 'Активен',
   location TEXT DEFAULT 'Неизвестно',
+  is_direct BOOLEAN DEFAULT false,
+  direct_key TEXT UNIQUE,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

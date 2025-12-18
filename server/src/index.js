@@ -144,11 +144,19 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
         chats.title,
         chats.status,
         chats.location,
+        chats.is_direct,
         COUNT(chat_members.user_id)::int AS members,
         MAX(messages.created_at) AS last_message_at,
-        (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message
+        (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
+        MAX(
+          CASE
+            WHEN chats.is_direct AND users.id <> $1 THEN
+              COALESCE(NULLIF(TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, '')), ''), users.login)
+          END
+        ) AS direct_title
       FROM chats
       JOIN chat_members ON chat_members.chat_id = chats.id
+      JOIN users ON users.id = chat_members.user_id
       LEFT JOIN messages ON messages.chat_id = chats.id
       WHERE chat_members.user_id = $1
       GROUP BY chats.id
@@ -158,9 +166,9 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
 
     const chats = result.rows.map((chat) => ({
       id: chat.id,
-      title: chat.title,
+      title: chat.is_direct ? chat.direct_title || chat.title : chat.title,
       status: chat.status,
-      location: chat.location,
+      location: chat.is_direct ? "Личный чат" : chat.location,
       members: `${chat.members} участников`,
       preview: chat.last_message || "Нет сообщений",
       time: chat.last_message_at
@@ -170,6 +178,7 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
           })
         : "",
       unread: 0,
+      is_direct: chat.is_direct,
     }));
 
     return res.json({ chats });
@@ -246,6 +255,129 @@ app.post("/api/chats", authMiddleware, async (req, res) => {
     );
 
     return res.status(201).json({ chat: chatResult.rows[0] });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.post("/api/chats/direct", authMiddleware, async (req, res) => {
+  const { login } = req.body;
+  if (!login) {
+    return res.status(400).json({ error: "Логин обязателен" });
+  }
+
+  try {
+    const targetResult = await pool.query(
+      `SELECT id, login, first_name, last_name
+       FROM users
+       WHERE login = $1`,
+      [login]
+    );
+
+    if (targetResult.rowCount === 0) {
+      return res.status(404).json({ error: "Пользователь не найден" });
+    }
+
+    const target = targetResult.rows[0];
+    if (target.id === req.user.id) {
+      return res.status(400).json({ error: "Нельзя создать чат с собой" });
+    }
+
+    const directKey = [req.user.id, target.id].sort((a, b) => a - b).join(":");
+
+    const existing = await pool.query(
+      `SELECT id, title, status, location, is_direct
+       FROM chats
+       WHERE direct_key = $1`,
+      [directKey]
+    );
+
+    if (existing.rowCount > 0) {
+      return res.json({ chat: existing.rows[0] });
+    }
+
+    const title = target.first_name
+      ? `${target.first_name}${target.last_name ? ` ${target.last_name}` : ""}`
+      : target.login;
+
+    const chatResult = await pool.query(
+      `INSERT INTO chats (title, status, location, is_direct, direct_key, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, title, status, location, is_direct`,
+      [title, "Личный", "Личный чат", true, directKey, req.user.id]
+    );
+
+    await pool.query(
+      `INSERT INTO chat_members (chat_id, user_id)
+       VALUES ($1, $2), ($1, $3)`,
+      [chatResult.rows[0].id, req.user.id, target.id]
+    );
+
+    return res.status(201).json({ chat: chatResult.rows[0] });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.post("/api/chats/:id/members", authMiddleware, async (req, res) => {
+  const chatId = Number(req.params.id);
+  const { login } = req.body;
+
+  if (!chatId || !login) {
+    return res.status(400).json({ error: "Некорректные данные" });
+  }
+
+  try {
+    const memberCheck = await pool.query(
+      `SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
+      [chatId, req.user.id]
+    );
+
+    if (memberCheck.rowCount === 0) {
+      return res.status(403).json({ error: "Нет доступа к чату" });
+    }
+
+    const userResult = await pool.query(
+      `SELECT id FROM users WHERE login = $1`,
+      [login]
+    );
+
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ error: "Пользователь не найден" });
+    }
+
+    await pool.query(
+      `INSERT INTO chat_members (chat_id, user_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [chatId, userResult.rows[0].id]
+    );
+
+    return res.status(201).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.get("/api/users", authMiddleware, async (req, res) => {
+  const query = req.query.query;
+  if (!query) {
+    return res.json({ users: [] });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, login, first_name, last_name
+       FROM users
+       WHERE login ILIKE $1
+          OR email ILIKE $1
+          OR first_name ILIKE $1
+          OR last_name ILIKE $1
+       LIMIT 10`,
+      [`%${query}%`]
+    );
+
+    return res.json({ users: result.rows });
   } catch (error) {
     return res.status(500).json({ error: "Ошибка сервера" });
   }

@@ -388,6 +388,29 @@ body,
   gap: 16px;
 }
 
+.stack-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.new-chat {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  width: 100%;
+}
+
+.new-chat input {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ecf2ff;
+  font-size: 14px;
+}
+
 .empty-state {
   padding: 18px;
   border-radius: 16px;
@@ -792,6 +815,20 @@ body,
   gap: 12px;
 }
 
+.modal-form {
+  display: grid;
+  gap: 12px;
+}
+
+.modal-form input {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ecf2ff;
+  font-size: 14px;
+}
+
 .app-mobile .modal-overlay {
   padding: 0;
 }
@@ -905,6 +942,10 @@ body,
 
   .composer-actions {
     flex-direction: column;
+  }
+
+  .new-chat {
+    grid-template-columns: 1fr;
   }
 
 }

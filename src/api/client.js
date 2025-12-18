@@ -41,6 +41,23 @@ export const api = {
     }),
   me: () => request("/api/me"),
   chats: () => request("/api/chats"),
+  createChat: (title) =>
+    request("/api/chats", {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+  createDirectChat: (login) =>
+    request("/api/chats/direct", {
+      method: "POST",
+      body: JSON.stringify({ login }),
+    }),
+  addMember: (chatId, login) =>
+    request(`/api/chats/${chatId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ login }),
+    }),
+  searchUsers: (query) =>
+    request(`/api/users?query=${encodeURIComponent(query)}`),
   messages: (chatId) => request(`/api/chats/${chatId}/messages`),
   sendMessage: (chatId, content) =>
     request(`/api/chats/${chatId}/messages`, {

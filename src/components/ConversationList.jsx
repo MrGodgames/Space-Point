@@ -1,4 +1,27 @@
-function ConversationList({ threads, activeId, onSelect }) {
+import { useState } from "react";
+
+function ConversationList({
+  threads,
+  activeId,
+  onSelect,
+  onCreateChat,
+  onCreateDirect,
+}) {
+  const [isCreating, setIsCreating] = useState(false);
+  const [title, setTitle] = useState("");
+
+  const submitChat = async (event) => {
+    event.preventDefault();
+    const trimmed = title.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    await onCreateChat?.(trimmed);
+    setTitle("");
+    setIsCreating(false);
+  };
+
   return (
     <section className="stack">
       <header className="stack-header">
@@ -11,6 +34,45 @@ function ConversationList({ threads, activeId, onSelect }) {
           <span className="search-glow" />
         </div>
       </header>
+
+      <div className="stack-actions">
+        {!isCreating ? (
+          <>
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => setIsCreating(true)}
+            >
+              Новый чат
+            </button>
+            <button className="ghost" type="button" onClick={onCreateDirect}>
+              Личный чат
+            </button>
+          </>
+        ) : (
+          <form className="new-chat" onSubmit={submitChat}>
+            <input
+              type="text"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Название чата"
+            />
+            <button className="primary" type="submit">
+              Создать
+            </button>
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => {
+                setIsCreating(false);
+                setTitle("");
+              }}
+            >
+              Отмена
+            </button>
+          </form>
+        )}
+      </div>
 
       <div className="thread-list">
         {threads.length === 0 ? (

@@ -12,6 +12,12 @@ createdb space_point
 psql -d space_point -f db/schema.sql
 ```
 
+Если база уже создана, добавьте новые поля для личных чатов:
+```
+psql -d space_point -c "ALTER TABLE chats ADD COLUMN IF NOT EXISTS is_direct BOOLEAN DEFAULT false;"
+psql -d space_point -c "ALTER TABLE chats ADD COLUMN IF NOT EXISTS direct_key TEXT UNIQUE;"
+```
+
 3) Скопируйте переменные окружения:
 ```
 cp .env.example .env

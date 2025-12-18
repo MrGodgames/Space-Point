@@ -5,6 +5,7 @@ import NavigationRail from "./components/NavigationRail";
 import ConversationList from "./components/ConversationList";
 import ChatPanel from "./components/ChatPanel";
 import AccountModal from "./components/AccountModal";
+import UserModal from "./components/UserModal";
 import { api } from "./api/client";
 import { quickActions } from "./data/mockData";
 
@@ -33,6 +34,8 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isDirectOpen, setIsDirectOpen] = useState(false);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
 
   const activeThread =
     threads.find((thread) => thread.id === activeThreadId) ?? null;
@@ -348,6 +351,16 @@ function App() {
                   setActiveThreadId(id);
                   setShowChat(true);
                 }}
+                onCreateChat={async (title) => {
+                  try {
+                    const result = await api.createChat(title);
+                    await loadChats(result.chat?.id);
+                    setActiveThreadId(result.chat?.id ?? activeThreadId);
+                  } catch (error) {
+                    // ignore
+                  }
+                }}
+                onCreateDirect={() => setIsDirectOpen(true)}
               />
             ) : (
               <ChatPanel
@@ -357,6 +370,7 @@ function App() {
                 isLoading={isChatLoading}
                 onBack={() => setShowChat(false)}
                 onSend={handleSendMessage}
+                onAddMember={() => setIsAddMemberOpen(true)}
               />
             )}
           </>
@@ -371,12 +385,23 @@ function App() {
               threads={threads}
               activeId={activeThread?.id}
               onSelect={setActiveThreadId}
+              onCreateChat={async (title) => {
+                try {
+                  const result = await api.createChat(title);
+                  await loadChats(result.chat?.id);
+                  setActiveThreadId(result.chat?.id ?? activeThreadId);
+                } catch (error) {
+                  // ignore
+                }
+              }}
+              onCreateDirect={() => setIsDirectOpen(true)}
             />
             <ChatPanel
               messages={messages}
               thread={activeThread}
               isLoading={isChatLoading}
               onSend={handleSendMessage}
+              onAddMember={() => setIsAddMemberOpen(true)}
             />
           </>
         )}
@@ -386,6 +411,31 @@ function App() {
         isOpen={isAccountOpen}
         onClose={() => setIsAccountOpen(false)}
         onLogout={handleLogout}
+      />
+      <UserModal
+        title="Личный чат"
+        placeholder="Логин пользователя"
+        isOpen={isDirectOpen}
+        onClose={() => setIsDirectOpen(false)}
+        onSubmit={async (login) => {
+          const result = await api.createDirectChat(login);
+          await loadChats(result.chat?.id);
+          setActiveThreadId(result.chat?.id ?? activeThreadId);
+          setShowChat(true);
+        }}
+      />
+      <UserModal
+        title="Добавить участника"
+        placeholder="Логин пользователя"
+        isOpen={isAddMemberOpen}
+        onClose={() => setIsAddMemberOpen(false)}
+        onSubmit={async (login) => {
+          if (!activeThreadId) {
+            return;
+          }
+          await api.addMember(activeThreadId, login);
+          await loadChats(activeThreadId);
+        }}
       />
     </div>
   );

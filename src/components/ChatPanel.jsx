@@ -1,6 +1,14 @@
 import { useState } from "react";
 
-function ChatPanel({ messages, thread, isMobile, onBack, onSend, isLoading }) {
+function ChatPanel({
+  messages,
+  thread,
+  isMobile,
+  onBack,
+  onSend,
+  isLoading,
+  onAddMember,
+}) {
   const [draft, setDraft] = useState("");
 
   if (!thread) {
@@ -42,6 +50,11 @@ function ChatPanel({ messages, thread, isMobile, onBack, onSend, isLoading }) {
             {thread.members} · {thread.location}
           </p>
         </div>
+        {!thread.is_direct && (
+          <button className="ghost" type="button" onClick={onAddMember}>
+            Добавить участника
+          </button>
+        )}
       </header>
 
       <div className="chat-pills">
