@@ -10,3 +10,7 @@ if (!process.env.DATABASE_URL) {
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
+
+pool.on("error", (error) => {
+  console.error("Postgres pool error:", error);
+});

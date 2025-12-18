@@ -22,6 +22,14 @@ if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET is required");
 }
 
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled rejection:", error);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception:", error);
+});
+
 app.use(cors());
 app.use(express.json());
 
