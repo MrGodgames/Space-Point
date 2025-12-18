@@ -42,3 +42,6 @@ CREATE TABLE IF NOT EXISTS message_reads (
   read_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   PRIMARY KEY (message_id, user_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_message_reads_message_id ON message_reads(message_id);
+CREATE INDEX IF NOT EXISTS idx_message_reads_user_id ON message_reads(user_id);

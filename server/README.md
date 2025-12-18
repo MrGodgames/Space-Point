@@ -12,6 +12,11 @@ createdb space_point
 psql -d space_point -f db/schema.sql
 ```
 
+Быстрый способ (создаст БД, если ее нет, и применит схему):
+```
+./scripts/setup-db.sh
+```
+
 Если база уже создана, добавьте новые поля для личных чатов:
 ```
 psql -d space_point -c "ALTER TABLE chats ADD COLUMN IF NOT EXISTS is_direct BOOLEAN DEFAULT false;"
