@@ -23,6 +23,9 @@ function ChatPanel({
   const [editTarget, setEditTarget] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const menuRef = useRef(null);
+  const prevMessageCount = useRef(messages.length);
+  const prevThreadId = useRef(thread?.id);
+  const scrollTopRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -43,6 +46,7 @@ function ChatPanel({
       const distance =
         container.scrollHeight - container.scrollTop - container.clientHeight;
       setIsAtBottom(distance <= threshold);
+      scrollTopRef.current = container.scrollTop;
     };
 
     container.addEventListener("scroll", updatePosition);
@@ -55,7 +59,18 @@ function ChatPanel({
 
   useEffect(() => {
     const container = chatBodyRef.current;
-    if (!container || !isAtBottom) {
+    if (!container) {
+      return;
+    }
+
+    const threadChanged = prevThreadId.current !== thread?.id;
+    const prevCount = prevMessageCount.current;
+
+    if (!isAtBottom && !threadChanged) {
+      return;
+    }
+
+    if (!threadChanged && messages.length <= prevCount) {
       return;
     }
 
@@ -65,6 +80,28 @@ function ChatPanel({
 
     return () => cancelAnimationFrame(frame);
   }, [messages, isLoading, thread?.id, isAtBottom]);
+
+  useEffect(() => {
+    const container = chatBodyRef.current;
+    if (!container) {
+      return;
+    }
+
+    const prevCount = prevMessageCount.current;
+    const threadChanged = prevThreadId.current !== thread?.id;
+
+    if (!threadChanged && messages.length < prevCount) {
+      const frame = requestAnimationFrame(() => {
+        container.scrollTop = scrollTopRef.current;
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [messages, thread?.id]);
+
+  useEffect(() => {
+    prevMessageCount.current = messages.length;
+    prevThreadId.current = thread?.id;
+  }, [messages.length, thread?.id]);
 
   useEffect(() => {
     setIsAtBottom(true);
@@ -165,10 +202,28 @@ function ChatPanel({
     const itemCount = isSelf ? 3 : 1;
     const menuWidth = 200;
     const menuHeight = itemCount * 36 + 16;
-    const maxX = window.innerWidth - menuWidth - 8;
-    const maxY = window.innerHeight - menuHeight - 8;
-    const x = Math.max(8, Math.min(event.clientX, maxX));
-    const y = Math.max(8, Math.min(event.clientY, maxY));
+    const container = chatBodyRef.current;
+    const containerRect = container?.getBoundingClientRect();
+
+    const rawX = event.clientX;
+    const rawY = event.clientY;
+
+    let x = rawX;
+    let y = rawY;
+
+    if (container && containerRect) {
+      const offsetX = rawX - containerRect.left + container.scrollLeft;
+      const offsetY = rawY - containerRect.top + container.scrollTop;
+      const maxX = container.scrollLeft + container.clientWidth - menuWidth - 8;
+      const maxY = container.scrollTop + container.clientHeight - menuHeight - 8;
+      x = Math.max(8 + container.scrollLeft, Math.min(offsetX, maxX));
+      y = Math.max(8 + container.scrollTop, Math.min(offsetY, maxY));
+    } else {
+      const maxX = window.innerWidth - menuWidth - 8;
+      const maxY = window.innerHeight - menuHeight - 8;
+      x = Math.max(8, Math.min(rawX, maxX));
+      y = Math.max(8, Math.min(rawY, maxY));
+    }
 
     setContextMenu({
       x,
@@ -212,8 +267,8 @@ function ChatPanel({
         <span>Защищено</span>
       </div>
 
-      <div className="chat-body">
-        <div className="chat-messages" ref={chatBodyRef}>
+      <div className="chat-body" ref={chatBodyRef}>
+        <div className="chat-messages">
           {isLoading ? (
             <div className="empty-state">Загрузка сообщений...</div>
           ) : messages.length === 0 ? (
@@ -247,11 +302,7 @@ function ChatPanel({
                         <p>{message.reply.content}</p>
                       </div>
                     )}
-                    <div className="bubble-head">
-                      <span>{message.author}</span>
-                      <span>{message.role}</span>
-                    </div>
-                    <p>{message.content}</p>
+                  <p>{message.content}</p>
                     <div className="bubble-time">
                       {message.time}
                       {message.edited_at && (
@@ -270,123 +321,122 @@ function ChatPanel({
               );
             })
           )}
-          {contextMenu && (
-            <div
-              className="message-actions"
-              ref={menuRef}
-              style={{ top: contextMenu.y, left: contextMenu.x }}
+        </div>
+        {contextMenu && (
+          <div
+            className="message-actions"
+            ref={menuRef}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+          >
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => {
+                setReplyTo({
+                  id: contextMenu.message.id,
+                  author: contextMenu.message.author,
+                  content: contextMenu.message.content,
+                });
+                setContextMenu(null);
+              }}
             >
-              <button
-                className="ghost"
-                type="button"
-                onClick={() => {
-                  setReplyTo({
-                    id: contextMenu.message.id,
-                    author: contextMenu.message.author,
-                    content: contextMenu.message.content,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                Ответить
-              </button>
-              {contextMenu.isSelf && (
-                <>
-                  <button
-                    className="ghost"
-                    type="button"
-                    onClick={() => {
-                      setEditTarget({
-                        id: contextMenu.message.id,
-                        content: contextMenu.message.content,
-                      });
-                      setContextMenu(null);
-                    }}
-                  >
-                    Редактировать
-                  </button>
-                  <button
-                    className="ghost"
-                    type="button"
-                    onClick={() => {
-                      onDelete?.(contextMenu.message.id);
-                      setContextMenu(null);
-                    }}
-                  >
-                    Удалить
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
-          <footer className="composer">
-            <div className="composer-input">
-              <form className="composer-form" onSubmit={handleSubmit}>
-                <button
-                  className="icon-button composer-attach"
-                  type="button"
-                  aria-label="Прикрепить файл"
-                >
-                  +
-                </button>
-                <input
-                  type="text"
-                  value={draft}
-                  onChange={(event) => {
-                    setDraft(event.target.value);
-                    onTyping?.(true);
-                    if (typingTimeout.current) {
-                      clearTimeout(typingTimeout.current);
-                    }
-                    typingTimeout.current = setTimeout(() => {
-                      onTyping?.(false);
-                    }, 1200);
-                  }}
-                  placeholder={
-                    editTarget
-                      ? "Редактировать сообщение"
-                      : replyTo
-                        ? `Ответ: ${replyTo.author}`
-                        : `Передать: ${thread.title}`
-                  }
-                />
-                <button className="primary composer-send" type="submit" aria-label="Отправить сообщение">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path
-                      d="M3 11.4l16.2-6.7a.7.7 0 0 1 .9.9L13.4 21a.7.7 0 0 1-1.3-.1l-1.6-5-5-1.6a.7.7 0 0 1-.1-1.3z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                </button>
-              </form>
-            </div>
-            {(replyTo || editTarget) && (
-              <div className="composer-context">
-                <span>
-                  {editTarget
-                    ? `Редактирование: ${editTarget.content}`
-                    : `Ответ: ${replyTo.author} · ${replyTo.content}`}
-                </span>
+              Ответить
+            </button>
+            {contextMenu.isSelf && (
+              <>
                 <button
                   className="ghost"
                   type="button"
                   onClick={() => {
-                    setReplyTo(null);
-                    setEditTarget(null);
+                    setEditTarget({
+                      id: contextMenu.message.id,
+                      content: contextMenu.message.content,
+                    });
+                    setContextMenu(null);
                   }}
                 >
-                  Отмена
+                  Редактировать
                 </button>
-              </div>
+                <button
+                  className="ghost"
+                  type="button"
+                  onClick={() => {
+                    onDelete?.(contextMenu.message.id);
+                    setContextMenu(null);
+                  }}
+                >
+                  Удалить
+                </button>
+              </>
             )}
-            {typingUsers.length > 0 && (
-              <div className="typing-indicator">
-                {typingUsers.join(", ")} печатает...
-              </div>
-            )}
-          </footer>
-        </div>
+          </div>
+        )}
+        <footer className="composer">
+          <div className="composer-input">
+            <form className="composer-form" onSubmit={handleSubmit}>
+              <button
+                className="icon-button composer-attach"
+                type="button"
+                aria-label="Прикрепить файл"
+              >
+                +
+              </button>
+              <input
+                type="text"
+                value={draft}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  onTyping?.(true);
+                  if (typingTimeout.current) {
+                    clearTimeout(typingTimeout.current);
+                  }
+                  typingTimeout.current = setTimeout(() => {
+                    onTyping?.(false);
+                  }, 1200);
+                }}
+                placeholder={
+                  editTarget
+                    ? "Редактировать сообщение"
+                    : replyTo
+                      ? `Ответ: ${replyTo.author}`
+                      : `Передать: ${thread.title}`
+                }
+              />
+              <button className="primary composer-send" type="submit" aria-label="Отправить сообщение">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M3 11.4l16.2-6.7a.7.7 0 0 1 .9.9L13.4 21a.7.7 0 0 1-1.3-.1l-1.6-5-5-1.6a.7.7 0 0 1-.1-1.3z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+            </form>
+          </div>
+          {(replyTo || editTarget) && (
+            <div className="composer-context">
+              <span>
+                {editTarget
+                  ? `Редактирование: ${editTarget.content}`
+                  : `Ответ: ${replyTo.author} · ${replyTo.content}`}
+              </span>
+              <button
+                className="ghost"
+                type="button"
+                onClick={() => {
+                  setReplyTo(null);
+                  setEditTarget(null);
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+          )}
+          {typingUsers.length > 0 && (
+            <div className="typing-indicator">
+              {typingUsers.join(", ")} печатает...
+            </div>
+          )}
+        </footer>
       </div>
     </section>
   );

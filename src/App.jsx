@@ -393,11 +393,13 @@ function App() {
     if (!messageId) {
       return;
     }
-    if (!window.confirm("Удалить сообщение?")) {
-      return;
-    }
     try {
       await api.deleteMessage(messageId);
+      if (activeThreadId) {
+        const data = await api.messages(activeThreadId);
+        setMessages(data.messages);
+        await loadChats(activeThreadId);
+      }
     } catch (error) {
       // ignore
     }
