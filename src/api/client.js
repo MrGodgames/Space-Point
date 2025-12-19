@@ -61,13 +61,22 @@ export const api = {
     request(`/api/chats/${chatId}`, {
       method: "DELETE",
     }),
+  updateMessage: (messageId, content) =>
+    request(`/api/messages/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content }),
+    }),
+  deleteMessage: (messageId) =>
+    request(`/api/messages/${messageId}`, {
+      method: "DELETE",
+    }),
   searchUsers: (query) =>
     request(`/api/users?query=${encodeURIComponent(query)}`),
   messages: (chatId) => request(`/api/chats/${chatId}/messages`),
-  sendMessage: (chatId, content) =>
+  sendMessage: (chatId, content, replyTo) =>
     request(`/api/chats/${chatId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, replyTo }),
     }),
   speedTest: async (bytes = 200000) => {
     const response = await fetch(`${API_URL}/api/speedtest?bytes=${bytes}`, {

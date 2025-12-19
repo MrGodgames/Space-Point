@@ -203,6 +203,35 @@ function App() {
       );
     });
 
+    socket.on("message:updated", ({ chatId, message }) => {
+      setMessages((prev) =>
+        prev.map((item) =>
+          item.id === message.id
+            ? {
+                ...item,
+                content: message.content,
+                edited_at: message.edited_at,
+              }
+            : item
+        )
+      );
+
+      setThreads((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId ? { ...chat, preview: message.content } : chat
+        )
+      );
+    });
+
+    socket.on("message:deleted", ({ chatId, messageId }) => {
+      setMessages((prev) => prev.filter((item) => item.id !== messageId));
+      setThreads((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId ? { ...chat } : chat
+        )
+      );
+    });
+
     socket.on("typing", ({ chatId, name, isTyping }) => {
       setTypingByChat((prev) => {
         const current = new Set(prev[chatId] || []);
@@ -327,13 +356,13 @@ function App() {
     setLastNameValue("");
   };
 
-  const handleSendMessage = async (content) => {
+  const handleSendMessage = async (content, replyTo) => {
     if (!activeThreadId) {
       return;
     }
 
     try {
-      await api.sendMessage(activeThreadId, content);
+      await api.sendMessage(activeThreadId, content, replyTo);
       const data = await api.messages(activeThreadId);
       setMessages(data.messages);
       await loadChats(activeThreadId);
@@ -347,6 +376,31 @@ function App() {
       return;
     }
     socketRef.current?.emit("typing", { chatId: activeThreadId, isTyping });
+  };
+
+  const handleEditMessage = async (messageId, content) => {
+    if (!messageId) {
+      return;
+    }
+    try {
+      await api.updateMessage(messageId, content);
+    } catch (error) {
+      // ignore
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (!messageId) {
+      return;
+    }
+    if (!window.confirm("Удалить сообщение?")) {
+      return;
+    }
+    try {
+      await api.deleteMessage(messageId);
+    } catch (error) {
+      // ignore
+    }
   };
 
   const handleDeleteChat = async () => {
@@ -549,6 +603,8 @@ function App() {
                 isLoading={isChatLoading}
                 onBack={() => setShowChat(false)}
                 onSend={handleSendMessage}
+                onEdit={handleEditMessage}
+                onDelete={handleDeleteMessage}
                 onAddMember={() => setIsAddMemberOpen(true)}
                 onTyping={handleTyping}
                 typingUsers={activeTyping}
@@ -587,6 +643,8 @@ function App() {
               thread={activeThread}
               isLoading={isChatLoading}
               onSend={handleSendMessage}
+              onEdit={handleEditMessage}
+              onDelete={handleDeleteMessage}
               onAddMember={() => setIsAddMemberOpen(true)}
               onTyping={handleTyping}
               typingUsers={activeTyping}

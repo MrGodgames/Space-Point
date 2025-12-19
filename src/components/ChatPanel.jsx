@@ -6,6 +6,8 @@ function ChatPanel({
   isMobile,
   onBack,
   onSend,
+  onEdit,
+  onDelete,
   isLoading,
   onAddMember,
   onTyping,
@@ -17,6 +19,8 @@ function ChatPanel({
   const typingTimeout = useRef(null);
   const chatBodyRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [replyTo, setReplyTo] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
 
   useEffect(() => {
     return () => {
@@ -78,15 +82,30 @@ function ChatPanel({
       return;
     }
 
-    onSend?.(trimmed);
+    if (editTarget) {
+      onEdit?.(editTarget.id, trimmed);
+      setEditTarget(null);
+      setDraft("");
+      return;
+    }
+
+    onSend?.(trimmed, replyTo?.id);
     setDraft("");
     onTyping?.(false);
+    setReplyTo(null);
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
     sendDraft();
   };
+
+  useEffect(() => {
+    if (!editTarget) {
+      return;
+    }
+    setDraft(editTarget.content);
+  }, [editTarget]);
 
   return (
     <section className="chat">
@@ -145,6 +164,12 @@ function ChatPanel({
                       .join("")}
                   </div>
                   <div className="bubble">
+                    {message.reply && (
+                      <div className="reply-preview">
+                        <span>{message.reply.author}</span>
+                        <p>{message.reply.content}</p>
+                      </div>
+                    )}
                     <div className="bubble-head">
                       <span>{message.author}</span>
                       <span>{message.role}</span>
@@ -152,12 +177,53 @@ function ChatPanel({
                     <p>{message.content}</p>
                     <div className="bubble-time">
                       {message.time}
+                      {message.edited_at && (
+                        <span className="read-status"> · изменено</span>
+                      )}
                       {isSelf && (
                         <span className="read-status">
                           {message.readByCount > 0
                             ? " · Прочитано"
                             : " · Доставлено"}
                         </span>
+                      )}
+                    </div>
+                    <div className="message-actions">
+                      <button
+                        className="ghost"
+                        type="button"
+                        onClick={() =>
+                          setReplyTo({
+                            id: message.id,
+                            author: message.author,
+                            content: message.content,
+                          })
+                        }
+                      >
+                        Ответить
+                      </button>
+                      {isSelf && (
+                        <>
+                          <button
+                            className="ghost"
+                            type="button"
+                            onClick={() => {
+                              setEditTarget({
+                                id: message.id,
+                                content: message.content,
+                              });
+                            }}
+                          >
+                            Редактировать
+                          </button>
+                          <button
+                            className="ghost"
+                            type="button"
+                            onClick={() => onDelete?.(message.id)}
+                          >
+                            Удалить
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -189,7 +255,13 @@ function ChatPanel({
                       onTyping?.(false);
                     }, 1200);
                   }}
-                  placeholder={`Передать: ${thread.title}`}
+                  placeholder={
+                    editTarget
+                      ? "Редактировать сообщение"
+                      : replyTo
+                        ? `Ответ: ${replyTo.author}`
+                        : `Передать: ${thread.title}`
+                  }
                 />
                 <button className="primary composer-send" type="submit" aria-label="Отправить сообщение">
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -201,6 +273,25 @@ function ChatPanel({
                 </button>
               </form>
             </div>
+            {(replyTo || editTarget) && (
+              <div className="composer-context">
+                <span>
+                  {editTarget
+                    ? `Редактирование: ${editTarget.content}`
+                    : `Ответ: ${replyTo.author} · ${replyTo.content}`}
+                </span>
+                <button
+                  className="ghost"
+                  type="button"
+                  onClick={() => {
+                    setReplyTo(null);
+                    setEditTarget(null);
+                  }}
+                >
+                  Отмена
+                </button>
+              </div>
+            )}
             {typingUsers.length > 0 && (
               <div className="typing-indicator">
                 {typingUsers.join(", ")} печатает...

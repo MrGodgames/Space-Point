@@ -421,15 +421,22 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT messages.id, messages.content, messages.created_at, messages.user_id,
+      `SELECT messages.id, messages.content, messages.created_at, messages.user_id, messages.reply_to, messages.edited_at,
               users.first_name, users.last_name, users.login,
+              reply.content AS reply_content,
+              reply_users.first_name AS reply_first_name,
+              reply_users.last_name AS reply_last_name,
+              reply_users.login AS reply_login,
               COUNT(message_reads.user_id) FILTER (WHERE message_reads.user_id <> messages.user_id) AS read_by_count,
               BOOL_OR(message_reads.user_id = $2) AS is_read
        FROM messages
        LEFT JOIN users ON users.id = messages.user_id
+       LEFT JOIN messages AS reply ON reply.id = messages.reply_to
+       LEFT JOIN users AS reply_users ON reply_users.id = reply.user_id
        LEFT JOIN message_reads ON message_reads.message_id = messages.id
        WHERE messages.chat_id = $1
-       GROUP BY messages.id, users.first_name, users.last_name, users.login
+       GROUP BY messages.id, users.first_name, users.last_name, users.login,
+                reply.content, reply_users.first_name, reply_users.last_name, reply_users.login
        ORDER BY messages.created_at ASC`,
       [chatId, req.user.id]
     );
@@ -448,6 +455,16 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
       user_id: message.user_id,
       readByCount: Number(message.read_by_count || 0),
       isRead: message.is_read,
+      reply_to: message.reply_to,
+      edited_at: message.edited_at,
+      reply: message.reply_content
+        ? {
+            content: message.reply_content,
+            author: message.reply_first_name
+              ? `${message.reply_first_name}${message.reply_last_name ? ` ${message.reply_last_name}` : ""}`
+              : message.reply_login,
+          }
+        : null,
     }));
 
     return res.json({ messages });
@@ -619,7 +636,7 @@ app.get("/api/users", authMiddleware, async (req, res) => {
 
 app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
   const chatId = Number(req.params.id);
-  const { content } = req.body;
+  const { content, replyTo } = req.body;
 
   if (!chatId || !content) {
     return res.status(400).json({ error: "Сообщение пустое" });
@@ -636,10 +653,10 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO messages (chat_id, user_id, content)
-       VALUES ($1, $2, $3)
-       RETURNING id, content, created_at`,
-      [chatId, req.user.id, content]
+      `INSERT INTO messages (chat_id, user_id, content, reply_to)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, content, created_at, reply_to`,
+      [chatId, req.user.id, content, replyTo || null]
     );
 
     const messageId = result.rows[0].id;
@@ -673,7 +690,28 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
       user_id: req.user.id,
       readByCount: 0,
       isRead: true,
+      reply_to: result.rows[0].reply_to,
+      reply: null,
     };
+
+    if (result.rows[0].reply_to) {
+      const replyResult = await pool.query(
+        `SELECT messages.content, users.first_name, users.last_name, users.login
+         FROM messages
+         LEFT JOIN users ON users.id = messages.user_id
+         WHERE messages.id = $1`,
+        [result.rows[0].reply_to]
+      );
+      if (replyResult.rowCount > 0) {
+        const replyRow = replyResult.rows[0];
+        payload.reply = {
+          content: replyRow.content,
+          author: replyRow.first_name
+            ? `${replyRow.first_name}${replyRow.last_name ? ` ${replyRow.last_name}` : ""}`
+            : replyRow.login,
+        };
+      }
+    }
 
     io.to(`chat:${chatId}`).emit("message:new", {
       chatId,
@@ -721,6 +759,82 @@ app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
     if (remaining.rows[0].count === 0) {
       await pool.query(`DELETE FROM chats WHERE id = $1`, [chatId]);
     }
+
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.patch("/api/messages/:id", authMiddleware, async (req, res) => {
+  const messageId = Number(req.params.id);
+  const { content } = req.body;
+
+  if (!messageId || !content) {
+    return res.status(400).json({ error: "Сообщение пустое" });
+  }
+
+  try {
+    const messageResult = await pool.query(
+      `SELECT chat_id, user_id FROM messages WHERE id = $1`,
+      [messageId]
+    );
+
+    if (messageResult.rowCount === 0) {
+      return res.status(404).json({ error: "Сообщение не найдено" });
+    }
+
+    const message = messageResult.rows[0];
+    if (message.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Нет доступа" });
+    }
+
+    const updateResult = await pool.query(
+      `UPDATE messages
+       SET content = $1, edited_at = NOW()
+       WHERE id = $2
+       RETURNING id, chat_id, content, edited_at`,
+      [content, messageId]
+    );
+
+    io.to(`chat:${message.chat_id}`).emit("message:updated", {
+      chatId: message.chat_id,
+      message: updateResult.rows[0],
+    });
+
+    return res.json({ message: updateResult.rows[0] });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.delete("/api/messages/:id", authMiddleware, async (req, res) => {
+  const messageId = Number(req.params.id);
+  if (!messageId) {
+    return res.status(400).json({ error: "Некорректное сообщение" });
+  }
+
+  try {
+    const messageResult = await pool.query(
+      `SELECT chat_id, user_id FROM messages WHERE id = $1`,
+      [messageId]
+    );
+
+    if (messageResult.rowCount === 0) {
+      return res.status(404).json({ error: "Сообщение не найдено" });
+    }
+
+    const message = messageResult.rows[0];
+    if (message.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Нет доступа" });
+    }
+
+    await pool.query(`DELETE FROM messages WHERE id = $1`, [messageId]);
+
+    io.to(`chat:${message.chat_id}`).emit("message:deleted", {
+      chatId: message.chat_id,
+      messageId,
+    });
 
     return res.json({ success: true });
   } catch (error) {
