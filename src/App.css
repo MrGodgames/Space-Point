@@ -443,6 +443,7 @@ body,
 .thread-list {
   display: grid;
   gap: 16px;
+  position: relative;
 }
 
 .stack-actions {

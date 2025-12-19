@@ -6,11 +6,15 @@ function ConversationList({
   onSelect,
   onCreateChat,
   onCreateDirect,
+  onDeleteChat,
 }) {
   const [isCreating, setIsCreating] = useState(false);
   const [title, setTitle] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchRef = useRef(null);
+  const listRef = useRef(null);
+  const menuRef = useRef(null);
+  const [contextMenu, setContextMenu] = useState(null);
 
   const submitChat = async (event) => {
     event.preventDefault();
@@ -29,6 +33,77 @@ function ConversationList({
       searchRef.current?.focus();
     }
   }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+
+    const handlePointerDown = (event) => {
+      const isPrimaryClick = event.button === 0 || event.pointerType === "touch";
+      if (!isPrimaryClick) {
+        return;
+      }
+      if (menuRef.current && menuRef.current.contains(event.target)) {
+        return;
+      }
+      setContextMenu(null);
+    };
+
+    const handleClose = () => setContextMenu(null);
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        handleClose();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("resize", handleClose);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("resize", handleClose);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenu]);
+
+  const handleThreadContextMenu = (event, thread) => {
+    const isRightButton = event.button === 2 || (event.buttons & 2) === 2;
+    const isCtrlClick = event.button === 0 && event.ctrlKey;
+    const isContextMenuEvent = event.type === "contextmenu" || isRightButton || isCtrlClick;
+
+    if (!isContextMenuEvent) {
+      return;
+    }
+
+    event.preventDefault();
+    const menuWidth = 200;
+    const menuHeight = 52;
+    const containerRect = listRef.current?.getBoundingClientRect();
+    const rawX = event.clientX;
+    const rawY = event.clientY;
+
+    let x = rawX;
+    let y = rawY;
+
+    if (containerRect) {
+      const offsetX = rawX - containerRect.left;
+      const offsetY = rawY - containerRect.top;
+      const maxX = containerRect.width - menuWidth - 8;
+      const maxY = containerRect.height - menuHeight - 8;
+      x = Math.max(8, Math.min(offsetX, maxX));
+      y = Math.max(8, Math.min(offsetY, maxY));
+    } else {
+      const maxX = window.innerWidth - menuWidth - 8;
+      const maxY = window.innerHeight - menuHeight - 8;
+      x = Math.max(8, Math.min(rawX, maxX));
+      y = Math.max(8, Math.min(rawY, maxY));
+    }
+
+    setContextMenu({ x, y, thread });
+  };
 
   return (
     <section className="stack">
@@ -93,7 +168,7 @@ function ConversationList({
         )}
       </div>
 
-      <div className="thread-list">
+      <div className="thread-list" ref={listRef}>
         {threads.length === 0 ? (
           <div className="empty-state">Чатов пока нет</div>
         ) : (
@@ -101,6 +176,12 @@ function ConversationList({
             <article
               key={thread.id}
               className={`thread-card ${thread.id === activeId ? "active" : ""}`}
+              onContextMenuCapture={(event) =>
+                handleThreadContextMenu(event, thread)
+              }
+              onPointerUp={(event) =>
+                handleThreadContextMenu(event, thread)
+              }
             >
               <div className="thread-top">
                 <div>
@@ -121,6 +202,24 @@ function ConversationList({
               />
             </article>
           ))
+        )}
+        {contextMenu && (
+          <div
+            className="message-actions"
+            ref={menuRef}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+          >
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => {
+                onDeleteChat?.(contextMenu.thread.id);
+                setContextMenu(null);
+              }}
+            >
+              Удалить чат
+            </button>
+          </div>
         )}
       </div>
 

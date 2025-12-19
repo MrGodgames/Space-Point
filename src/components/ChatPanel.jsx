@@ -249,16 +249,7 @@ function ChatPanel({
             {thread.is_direct ? thread.location : `${thread.members} · ${thread.location}`}
           </p>
         </div>
-        <div className="chat-actions">
-          {!thread.is_direct && (
-            <button className="ghost" type="button" onClick={onAddMember}>
-              Добавить участника
-            </button>
-          )}
-          <button className="ghost" type="button" onClick={onDeleteChat}>
-            Удалить чат
-          </button>
-        </div>
+        <div className="chat-actions" />
       </header>
 
       <div className="chat-pills">

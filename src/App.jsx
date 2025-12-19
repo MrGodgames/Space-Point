@@ -596,6 +596,7 @@ function App() {
                   }
                 }}
                 onCreateDirect={() => setIsDirectOpen(true)}
+                onDeleteChat={handleDeleteChat}
               />
             ) : (
               <ChatPanel
@@ -639,6 +640,7 @@ function App() {
                 }
               }}
               onCreateDirect={() => setIsDirectOpen(true)}
+              onDeleteChat={handleDeleteChat}
             />
             <ChatPanel
               messages={messages}
