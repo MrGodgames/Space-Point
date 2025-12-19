@@ -21,6 +21,8 @@ function ChatPanel({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -107,6 +109,75 @@ function ChatPanel({
     setDraft(editTarget.content);
   }, [editTarget]);
 
+  useEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+
+    const handlePointerDown = (event) => {
+      const isPrimaryClick = event.button === 0 || event.pointerType === "touch";
+      if (!isPrimaryClick) {
+        return;
+      }
+      if (menuRef.current && menuRef.current.contains(event.target)) {
+        return;
+      }
+      setContextMenu(null);
+    };
+
+    const handleClose = () => setContextMenu(null);
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        handleClose();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("resize", handleClose);
+    window.addEventListener("keydown", handleKeyDown);
+
+    const container = chatBodyRef.current;
+    if (container) {
+      container.addEventListener("scroll", handleClose);
+    }
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("resize", handleClose);
+      window.removeEventListener("keydown", handleKeyDown);
+      if (container) {
+        container.removeEventListener("scroll", handleClose);
+      }
+    };
+  }, [contextMenu]);
+
+  const handleMessageContextMenu = (event, message, isSelf) => {
+    const isRightButton = event.button === 2 || (event.buttons & 2) === 2;
+    const isCtrlClick = event.button === 0 && event.ctrlKey;
+    const isContextMenuEvent = event.type === "contextmenu" || isRightButton || isCtrlClick;
+
+    if (!isContextMenuEvent) {
+      return;
+    }
+
+    event.preventDefault();
+    const itemCount = isSelf ? 3 : 1;
+    const menuWidth = 200;
+    const menuHeight = itemCount * 36 + 16;
+    const maxX = window.innerWidth - menuWidth - 8;
+    const maxY = window.innerHeight - menuHeight - 8;
+    const x = Math.max(8, Math.min(event.clientX, maxX));
+    const y = Math.max(8, Math.min(event.clientY, maxY));
+
+    setContextMenu({
+      x,
+      y,
+      message,
+      isSelf,
+    });
+  };
+
   return (
     <section className="chat">
       <header className="chat-header">
@@ -156,6 +227,12 @@ function ChatPanel({
                 <div
                   key={message.id ?? `${message.author}-${message.time}`}
                   className={`message ${isSelf ? "self" : ""}`}
+                  onContextMenuCapture={(event) =>
+                    handleMessageContextMenu(event, message, isSelf)
+                  }
+                  onPointerUp={(event) =>
+                    handleMessageContextMenu(event, message, isSelf)
+                  }
                 >
                   <div className="avatar">
                     {message.author
@@ -188,48 +265,59 @@ function ChatPanel({
                         </span>
                       )}
                     </div>
-                    <div className="message-actions">
-                      <button
-                        className="ghost"
-                        type="button"
-                        onClick={() =>
-                          setReplyTo({
-                            id: message.id,
-                            author: message.author,
-                            content: message.content,
-                          })
-                        }
-                      >
-                        Ответить
-                      </button>
-                      {isSelf && (
-                        <>
-                          <button
-                            className="ghost"
-                            type="button"
-                            onClick={() => {
-                              setEditTarget({
-                                id: message.id,
-                                content: message.content,
-                              });
-                            }}
-                          >
-                            Редактировать
-                          </button>
-                          <button
-                            className="ghost"
-                            type="button"
-                            onClick={() => onDelete?.(message.id)}
-                          >
-                            Удалить
-                          </button>
-                        </>
-                      )}
-                    </div>
                   </div>
                 </div>
               );
             })
+          )}
+          {contextMenu && (
+            <div
+              className="message-actions"
+              ref={menuRef}
+              style={{ top: contextMenu.y, left: contextMenu.x }}
+            >
+              <button
+                className="ghost"
+                type="button"
+                onClick={() => {
+                  setReplyTo({
+                    id: contextMenu.message.id,
+                    author: contextMenu.message.author,
+                    content: contextMenu.message.content,
+                  });
+                  setContextMenu(null);
+                }}
+              >
+                Ответить
+              </button>
+              {contextMenu.isSelf && (
+                <>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      setEditTarget({
+                        id: contextMenu.message.id,
+                        content: contextMenu.message.content,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    Редактировать
+                  </button>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      onDelete?.(contextMenu.message.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    Удалить
+                  </button>
+                </>
+              )}
+            </div>
           )}
 
           <footer className="composer">
