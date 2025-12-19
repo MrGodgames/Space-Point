@@ -109,12 +109,7 @@ const fetchChatForUser = async (chatId, userId) => {
       COUNT(DISTINCT chat_members.user_id)::int AS members,
       MAX(messages.created_at) AS last_message_at,
       (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
-      MAX(
-        CASE
-          WHEN chats.is_direct AND users.id <> $2 THEN
-            COALESCE(NULLIF(TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, '')), ''), users.login)
-        END
-      ) AS direct_title
+      (ARRAY_REMOVE(ARRAY_AGG(CASE WHEN users.id <> $2 THEN COALESCE(NULLIF(TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, '')), ''), users.login) END), NULL))[1] AS direct_title
     FROM chats
     JOIN chat_members ON chat_members.chat_id = chats.id
     JOIN users ON users.id = chat_members.user_id
@@ -372,16 +367,11 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
         chats.is_direct,
       COUNT(DISTINCT chat_members.user_id)::int AS members,
         MAX(messages.created_at) AS last_message_at,
-        (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
-        MAX(
-          CASE
-            WHEN chats.is_direct AND users.id <> $1 THEN
-              COALESCE(NULLIF(TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, '')), ''), users.login)
-          END
-        ) AS direct_title
-      FROM chats
-      JOIN chat_members ON chat_members.chat_id = chats.id
-      JOIN users ON users.id = chat_members.user_id
+      (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
+      (ARRAY_REMOVE(ARRAY_AGG(CASE WHEN users.id <> $1 THEN COALESCE(NULLIF(TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, '')), ''), users.login) END), NULL))[1] AS direct_title
+    FROM chats
+    JOIN chat_members ON chat_members.chat_id = chats.id
+    JOIN users ON users.id = chat_members.user_id
       LEFT JOIN messages ON messages.chat_id = chats.id
       WHERE chat_members.user_id = $1
       GROUP BY chats.id
