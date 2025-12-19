@@ -6,6 +6,7 @@ function ChatPanel({
   isMobile,
   onBack,
   onSend,
+  onUpload,
   onEdit,
   onDelete,
   isLoading,
@@ -21,6 +22,10 @@ function ChatPanel({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef(null);
   const [contextMenu, setContextMenu] = useState(null);
   const menuRef = useRef(null);
   const prevMessageCount = useRef(messages.length);
@@ -107,6 +112,14 @@ function ChatPanel({
     setIsAtBottom(true);
   }, [thread?.id]);
 
+  useEffect(() => {
+    setReplyTo(null);
+    setEditTarget(null);
+    setDraft("");
+    setAttachments([]);
+    setUploadError("");
+  }, [thread?.id]);
+
   if (!thread) {
     return (
       <section className="chat">
@@ -117,7 +130,7 @@ function ChatPanel({
 
   const sendDraft = () => {
     const trimmed = draft.trim();
-    if (!trimmed) {
+    if (!trimmed && attachments.length === 0) {
       return;
     }
 
@@ -128,15 +141,35 @@ function ChatPanel({
       return;
     }
 
-    onSend?.(trimmed, replyTo?.id);
+    onSend?.(trimmed, replyTo?.id, attachments);
     setDraft("");
     onTyping?.(false);
     setReplyTo(null);
+    setAttachments([]);
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
     sendDraft();
+  };
+
+  const handleFilesSelected = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError("");
+    try {
+      const uploaded = await onUpload?.(files);
+      setAttachments((prev) => [...prev, ...(uploaded || [])]);
+    } catch (error) {
+      setUploadError(error.message || "Ошибка загрузки");
+    } finally {
+      setIsUploading(false);
+      event.target.value = "";
+    }
   };
 
   useEffect(() => {
@@ -249,7 +282,16 @@ function ChatPanel({
             {thread.is_direct ? thread.location : `${thread.members} · ${thread.location}`}
           </p>
         </div>
-        <div className="chat-actions" />
+        <div className="chat-actions">
+          {!thread.is_direct && (
+            <button className="ghost" type="button" onClick={onAddMember}>
+              Добавить участника
+            </button>
+          )}
+          <button className="ghost" type="button" onClick={onDeleteChat}>
+            Удалить чат
+          </button>
+        </div>
       </header>
 
       <div className="chat-pills">
@@ -293,7 +335,26 @@ function ChatPanel({
                         <p>{message.reply.content}</p>
                       </div>
                     )}
-                  <p>{message.content}</p>
+                  {message.content && <p>{message.content}</p>}
+                  {message.attachments?.length > 0 && (
+                    <div className="attachments-list">
+                      {message.attachments.map((file) => (
+                        <a
+                          key={file.object_key}
+                          className="attachment-item"
+                          href={file.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {file.mime_type.startsWith("image/") ? (
+                            <img src={file.url} alt={file.original_name} />
+                          ) : (
+                            <span>{file.original_name}</span>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                     <div className="bubble-time">
                       {message.time}
                       {message.edited_at && (
@@ -365,16 +426,25 @@ function ChatPanel({
         <footer className="composer">
           <div className="composer-input">
             <form className="composer-form" onSubmit={handleSubmit}>
-              <button
-                className="icon-button composer-attach"
-                type="button"
-                aria-label="Прикрепить файл"
-              >
-                +
-              </button>
-              <input
-                type="text"
-                value={draft}
+                <button
+                  className="icon-button composer-attach"
+                  type="button"
+                  aria-label="Прикрепить файл"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  +
+                </button>
+                <input
+                  ref={fileInputRef}
+                  className="file-input"
+                  type="file"
+                  multiple
+                  onChange={handleFilesSelected}
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z"
+                />
+                <input
+                  type="text"
+                  value={draft}
                 onChange={(event) => {
                   setDraft(event.target.value);
                   onTyping?.(true);
@@ -403,30 +473,54 @@ function ChatPanel({
               </button>
             </form>
           </div>
-          {(replyTo || editTarget) && (
-            <div className="composer-context">
-              <span>
-                {editTarget
-                  ? `Редактирование: ${editTarget.content}`
-                  : `Ответ: ${replyTo.author} · ${replyTo.content}`}
-              </span>
-              <button
-                className="ghost"
-                type="button"
-                onClick={() => {
-                  setReplyTo(null);
-                  setEditTarget(null);
-                }}
-              >
-                Отмена
-              </button>
-            </div>
-          )}
-          {typingUsers.length > 0 && (
-            <div className="typing-indicator">
-              {typingUsers.join(", ")} печатает...
-            </div>
-          )}
+            {(replyTo || editTarget) && (
+              <div className="composer-context">
+                <span>
+                  {editTarget
+                    ? `Редактирование: ${editTarget.content}`
+                    : `Ответ: ${replyTo.author} · ${replyTo.content}`}
+                </span>
+                <button
+                  className="ghost"
+                  type="button"
+                  onClick={() => {
+                    setReplyTo(null);
+                    setEditTarget(null);
+                  }}
+                >
+                  Отмена
+                </button>
+              </div>
+            )}
+            {attachments.length > 0 && (
+              <div className="attachments-draft">
+                {attachments.map((file) => (
+                  <div key={file.object_key} className="attachment-chip">
+                    <span>{file.original_name}</span>
+                    <button
+                      className="ghost"
+                      type="button"
+                      onClick={() =>
+                        setAttachments((prev) =>
+                          prev.filter((item) => item.object_key !== file.object_key)
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {isUploading && (
+              <div className="upload-status">Загрузка файлов...</div>
+            )}
+            {uploadError && <div className="auth-error">{uploadError}</div>}
+            {typingUsers.length > 0 && (
+              <div className="typing-indicator">
+                {typingUsers.join(", ")} печатает...
+              </div>
+            )}
         </footer>
       </div>
     </section>

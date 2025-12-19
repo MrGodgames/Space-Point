@@ -5,8 +5,15 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
+import multer from "multer";
+import os from "os";
+import path from "path";
+import fs from "fs/promises";
+import { createReadStream } from "fs";
+import sharp from "sharp";
 import { pool } from "./db.js";
 import { authMiddleware } from "./middleware/auth.js";
+import { uploadObject, getSignedDownloadUrl, bucketName } from "./storage.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -17,31 +24,18 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 4000;
+const MAX_FILE_SIZE = Number(process.env.MAX_FILE_SIZE || 200 * 1024 * 1024);
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET is required");
 }
 
-process.on("unhandledRejection", (error) => {
-  console.error("Unhandled rejection:", error);
-});
-
-process.on("uncaughtException", (error) => {
-  console.error("Uncaught exception:", error);
-});
-
 app.use(cors());
 app.use(express.json());
 
-app.get("/api/speedtest", (req, res) => {
-  const requested = Number.parseInt(req.query.bytes, 10);
-  const safeSize = Number.isFinite(requested) ? requested : 200000;
-  const payloadSize = Math.min(Math.max(safeSize, 1024), 1000000);
-  const payload = Buffer.alloc(payloadSize, "a");
-
-  res.set("Content-Type", "application/octet-stream");
-  res.set("Cache-Control", "no-store");
-  res.send(payload);
+const upload = multer({
+  dest: path.join(os.tmpdir(), "space-point-uploads"),
+  limits: { fileSize: MAX_FILE_SIZE },
 });
 
 const createToken = (user) =>
@@ -97,6 +91,16 @@ const formatChatRow = (chat) => ({
   unread: 0,
   is_direct: chat.is_direct,
 });
+
+const enrichAttachments = async (attachments) => {
+  return Promise.all(
+    attachments.map(async (attachment) => ({
+      ...attachment,
+      url: await getSignedDownloadUrl(attachment.object_key),
+      bucket: bucketName,
+    }))
+  );
+};
 
 const fetchChatForUser = async (chatId, userId) => {
   const result = await pool.query(
@@ -239,6 +243,61 @@ io.on("connection", async (socket) => {
       io.emit("presence:update", { userId, status: "offline" });
     }
   });
+});
+
+app.post("/api/uploads", authMiddleware, upload.array("files", 10), async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: "Файлы не найдены" });
+  }
+
+  try {
+    const uploads = [];
+
+    for (const file of req.files) {
+      const isImage = file.mimetype.startsWith("image/");
+      const baseKey = `uploads/${req.user.id}/${Date.now()}-${Math.random()
+        .toString(16)
+        .slice(2)}`;
+      let key = baseKey;
+      let body;
+      let contentType = file.mimetype;
+      let sizeBytes = file.size;
+      let originalName = file.originalname;
+
+      if (isImage) {
+        const buffer = await sharp(file.path)
+          .rotate()
+          .resize({ width: 1920, withoutEnlargement: true })
+          .webp({ quality: 80 })
+          .toBuffer();
+        key = `${baseKey}.webp`;
+        body = buffer;
+        contentType = "image/webp";
+        sizeBytes = buffer.length;
+        originalName = file.originalname.replace(/\.[^.]+$/, ".webp");
+      } else {
+        body = createReadStream(file.path);
+      }
+
+      await uploadObject({ key, body, contentType });
+      const url = await getSignedDownloadUrl(key);
+
+      uploads.push({
+        object_key: key,
+        original_name: originalName,
+        mime_type: contentType,
+        size_bytes: sizeBytes,
+        url,
+        bucket: bucketName,
+      });
+
+      await fs.unlink(file.path);
+    }
+
+    return res.json({ attachments: uploads });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка загрузки" });
+  }
 });
 
 app.post("/api/auth/register", async (req, res) => {
@@ -441,31 +500,57 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
       [chatId, req.user.id]
     );
 
-    const messages = result.rows.map((message) => ({
-      id: message.id,
-      author: message.first_name
-        ? `${message.first_name}${message.last_name ? ` ${message.last_name}` : ""}`
-        : message.login,
-      role: "",
-      content: message.content,
-      time: new Date(message.created_at).toLocaleTimeString("ru-RU", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      user_id: message.user_id,
-      readByCount: Number(message.read_by_count || 0),
-      isRead: message.is_read,
-      reply_to: message.reply_to,
-      edited_at: message.edited_at,
-      reply: message.reply_content
-        ? {
-            content: message.reply_content,
-            author: message.reply_first_name
-              ? `${message.reply_first_name}${message.reply_last_name ? ` ${message.reply_last_name}` : ""}`
-              : message.reply_login,
-          }
-        : null,
-    }));
+    const messageIds = result.rows.map((message) => message.id);
+    const attachmentsResult = messageIds.length
+      ? await pool.query(
+          `SELECT id, message_id, object_key, original_name, mime_type, size_bytes
+           FROM message_attachments
+           WHERE message_id = ANY($1::int[])`,
+          [messageIds]
+        )
+      : { rows: [] };
+
+    const attachmentsByMessage = attachmentsResult.rows.reduce((acc, row) => {
+      if (!acc[row.message_id]) {
+        acc[row.message_id] = [];
+      }
+      acc[row.message_id].push(row);
+      return acc;
+    }, {});
+
+    const messages = await Promise.all(
+      result.rows.map(async (message) => {
+        const attachments = attachmentsByMessage[message.id] || [];
+        const withUrls = await enrichAttachments(attachments);
+
+        return {
+          id: message.id,
+          author: message.first_name
+            ? `${message.first_name}${message.last_name ? ` ${message.last_name}` : ""}`
+            : message.login,
+          role: "",
+          content: message.content,
+          time: new Date(message.created_at).toLocaleTimeString("ru-RU", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          user_id: message.user_id,
+          readByCount: Number(message.read_by_count || 0),
+          isRead: message.is_read,
+          reply_to: message.reply_to,
+          edited_at: message.edited_at,
+          reply: message.reply_content
+            ? {
+                content: message.reply_content,
+                author: message.reply_first_name
+                  ? `${message.reply_first_name}${message.reply_last_name ? ` ${message.reply_last_name}` : ""}`
+                  : message.reply_login,
+              }
+            : null,
+          attachments: withUrls,
+        };
+      })
+    );
 
     return res.json({ messages });
   } catch (error) {
@@ -636,9 +721,9 @@ app.get("/api/users", authMiddleware, async (req, res) => {
 
 app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
   const chatId = Number(req.params.id);
-  const { content, replyTo } = req.body;
+  const { content = "", replyTo, attachments = [] } = req.body;
 
-  if (!chatId || !content) {
+  if (!chatId || (!content && attachments.length === 0)) {
     return res.status(400).json({ error: "Сообщение пустое" });
   }
 
@@ -660,6 +745,34 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
     );
 
     const messageId = result.rows[0].id;
+
+    if (attachments.length > 0) {
+      const values = attachments
+        .map(
+          (attachment, index) =>
+            `($1, $${index * 4 + 2}, $${index * 4 + 3}, $${
+              index * 4 + 4
+            }, $${index * 4 + 5})`
+        )
+        .join(", ");
+
+      const params = attachments.reduce(
+        (acc, attachment) =>
+          acc.concat([
+            attachment.object_key,
+            attachment.original_name,
+            attachment.mime_type,
+            attachment.size_bytes,
+          ]),
+        [messageId]
+      );
+
+      await pool.query(
+        `INSERT INTO message_attachments (message_id, object_key, original_name, mime_type, size_bytes)
+         VALUES ${values}`,
+        params
+      );
+    }
 
     await pool.query(
       `INSERT INTO message_reads (message_id, user_id)
@@ -692,6 +805,7 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
       isRead: true,
       reply_to: result.rows[0].reply_to,
       reply: null,
+      attachments: [],
     };
 
     if (result.rows[0].reply_to) {
@@ -713,6 +827,10 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
       }
     }
 
+    if (attachments.length > 0) {
+      payload.attachments = await enrichAttachments(attachments);
+    }
+
     io.to(`chat:${chatId}`).emit("message:new", {
       chatId,
       message: payload,
@@ -720,47 +838,11 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
 
     io.to(`chat:${chatId}`).emit("chat:updated", {
       chatId,
-      preview: payload.content,
+      preview: payload.content || "Вложение",
       time: payload.time,
     });
 
     return res.status(201).json({ message: result.rows[0] });
-  } catch (error) {
-    return res.status(500).json({ error: "Ошибка сервера" });
-  }
-});
-
-app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
-  const chatId = Number(req.params.id);
-  if (!chatId) {
-    return res.status(400).json({ error: "Некорректный чат" });
-  }
-
-  try {
-    const memberCheck = await pool.query(
-      `SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
-      [chatId, req.user.id]
-    );
-
-    if (memberCheck.rowCount === 0) {
-      return res.status(403).json({ error: "Нет доступа к чату" });
-    }
-
-    await pool.query(
-      `DELETE FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
-      [chatId, req.user.id]
-    );
-
-    const remaining = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM chat_members WHERE chat_id = $1`,
-      [chatId]
-    );
-
-    if (remaining.rows[0].count === 0) {
-      await pool.query(`DELETE FROM chats WHERE id = $1`, [chatId]);
-    }
-
-    return res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ error: "Ошибка сервера" });
   }
@@ -835,6 +917,42 @@ app.delete("/api/messages/:id", authMiddleware, async (req, res) => {
       chatId: message.chat_id,
       messageId,
     });
+
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
+  const chatId = Number(req.params.id);
+  if (!chatId) {
+    return res.status(400).json({ error: "Некорректный чат" });
+  }
+
+  try {
+    const memberCheck = await pool.query(
+      `SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
+      [chatId, req.user.id]
+    );
+
+    if (memberCheck.rowCount === 0) {
+      return res.status(403).json({ error: "Нет доступа к чату" });
+    }
+
+    await pool.query(
+      `DELETE FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
+      [chatId, req.user.id]
+    );
+
+    const remaining = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM chat_members WHERE chat_id = $1`,
+      [chatId]
+    );
+
+    if (remaining.rows[0].count === 0) {
+      await pool.query(`DELETE FROM chats WHERE id = $1`, [chatId]);
+    }
 
     return res.json({ success: true });
   } catch (error) {

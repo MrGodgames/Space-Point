@@ -377,12 +377,13 @@ function App() {
     setLastNameValue("");
   };
 
-  const handleSendMessage = async (content, replyTo) => {
+  const handleSendMessage = async (content, replyTo, attachments = []) => {
     if (!activeThreadId) {
       return;
     }
 
     const now = new Date();
+    const previewText = content || (attachments.length > 0 ? "Вложение" : "");
     const currentUser = userRef.current;
     const optimistic = {
       id: `temp-${now.getTime()}`,
@@ -390,6 +391,7 @@ function App() {
       reply: replyTo
         ? messages.find((item) => item.id === replyTo) ?? null
         : null,
+      attachments,
       time: formatTime(now),
       edited_at: null,
       author:
@@ -409,13 +411,13 @@ function App() {
     setThreads((prev) =>
       prev.map((chat) =>
         chat.id === activeThreadId
-          ? { ...chat, preview: content, time: optimistic.time }
+          ? { ...chat, preview: previewText, time: optimistic.time }
           : chat
       )
     );
 
     try {
-      await api.sendMessage(activeThreadId, content, replyTo);
+      await api.sendMessage(activeThreadId, content, replyTo, attachments);
     } catch (error) {
       setMessages((prev) => {
         const next = prev.filter((item) => item.id !== optimistic.id);
@@ -443,6 +445,13 @@ function App() {
       return;
     }
     socketRef.current?.emit("typing", { chatId: activeThreadId, isTyping });
+  };
+
+  const handleUploadFiles = async (files) => {
+    if (!files || files.length === 0) {
+      return [];
+    }
+    return api.uploadFiles(files);
   };
 
   const handleEditMessage = async (messageId, content) => {
@@ -705,6 +714,7 @@ function App() {
                 isLoading={isChatLoading}
                 onBack={() => setShowChat(false)}
                 onSend={handleSendMessage}
+                onUpload={handleUploadFiles}
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
                 onAddMember={() => setIsAddMemberOpen(true)}
@@ -746,6 +756,7 @@ function App() {
               thread={activeThread}
               isLoading={isChatLoading}
               onSend={handleSendMessage}
+              onUpload={handleUploadFiles}
               onEdit={handleEditMessage}
               onDelete={handleDeleteMessage}
               onAddMember={() => setIsAddMemberOpen(true)}

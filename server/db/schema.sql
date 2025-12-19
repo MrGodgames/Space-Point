@@ -47,3 +47,15 @@ CREATE TABLE IF NOT EXISTS message_reads (
 
 CREATE INDEX IF NOT EXISTS idx_message_reads_message_id ON message_reads(message_id);
 CREATE INDEX IF NOT EXISTS idx_message_reads_user_id ON message_reads(user_id);
+
+CREATE TABLE IF NOT EXISTS message_attachments (
+  id SERIAL PRIMARY KEY,
+  message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+  object_key TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_attachments_message_id ON message_attachments(message_id);

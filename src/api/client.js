@@ -70,13 +70,33 @@ export const api = {
     request(`/api/messages/${messageId}`, {
       method: "DELETE",
     }),
+  uploadFiles: async (files) => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    const token = getToken();
+    const response = await fetch(`${API_URL}/api/uploads`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || "Ошибка загрузки");
+    }
+
+    return data.attachments || [];
+  },
   searchUsers: (query) =>
     request(`/api/users?query=${encodeURIComponent(query)}`),
   messages: (chatId) => request(`/api/chats/${chatId}/messages`),
-  sendMessage: (chatId, content, replyTo) =>
+  sendMessage: (chatId, content, replyTo, attachments) =>
     request(`/api/chats/${chatId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content, replyTo }),
+      body: JSON.stringify({ content, replyTo, attachments }),
     }),
   speedTest: async (bytes = 200000) => {
     const response = await fetch(`${API_URL}/api/speedtest?bytes=${bytes}`, {
