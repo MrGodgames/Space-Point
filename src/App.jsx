@@ -19,6 +19,12 @@ const formatAccount = (user) => ({
   status: user.status || "Онлайн",
 });
 
+const formatTime = (date = new Date()) =>
+  date.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [activeThreadId, setActiveThreadId] = useState(null);
@@ -172,7 +178,22 @@ function App() {
       );
 
       if (chatId === activeThreadIdRef.current) {
-        setMessages((prev) => [...prev, enriched]);
+        setMessages((prev) => {
+          if (!isSelf) {
+            return [...prev, enriched];
+          }
+
+          const pendingIndex = prev.findIndex(
+            (item) => item.pending && item.content === message.content
+          );
+          if (pendingIndex === -1) {
+            return [...prev, enriched];
+          }
+
+          const next = [...prev];
+          next[pendingIndex] = enriched;
+          return next;
+        });
         if (!isSelf) {
           socket.emit("read_messages", { chatId });
         }
@@ -361,13 +382,59 @@ function App() {
       return;
     }
 
+    const now = new Date();
+    const currentUser = userRef.current;
+    const optimistic = {
+      id: `temp-${now.getTime()}`,
+      content,
+      reply: replyTo
+        ? messages.find((item) => item.id === replyTo) ?? null
+        : null,
+      time: formatTime(now),
+      edited_at: null,
+      author:
+        account?.name ||
+        (currentUser
+          ? `${currentUser.first_name}${currentUser.last_name ? ` ${currentUser.last_name}` : ""}`
+          : "Вы"),
+      role: "вы",
+      user_id: currentUser?.id,
+      isSelf: true,
+      readByCount: 0,
+      isRead: true,
+      pending: true,
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
+    setThreads((prev) =>
+      prev.map((chat) =>
+        chat.id === activeThreadId
+          ? { ...chat, preview: content, time: optimistic.time }
+          : chat
+      )
+    );
+
     try {
       await api.sendMessage(activeThreadId, content, replyTo);
-      const data = await api.messages(activeThreadId);
-      setMessages(data.messages);
-      await loadChats(activeThreadId);
     } catch (error) {
-      // ignore
+      setMessages((prev) => {
+        const next = prev.filter((item) => item.id !== optimistic.id);
+        if (activeThreadId) {
+          const lastMessage = next[next.length - 1];
+          setThreads((threadsPrev) =>
+            threadsPrev.map((chat) =>
+              chat.id === activeThreadId
+                ? {
+                    ...chat,
+                    preview: lastMessage?.content || "",
+                    time: lastMessage?.time || "",
+                  }
+                : chat
+            )
+          );
+        }
+        return next;
+      });
     }
   };
 
@@ -382,6 +449,25 @@ function App() {
     if (!messageId) {
       return;
     }
+    const now = new Date();
+    setMessages((prev) => {
+      const next = prev.map((message) =>
+        message.id === messageId
+          ? { ...message, content, edited_at: now.toISOString() }
+          : message
+      );
+      const lastMessage = next[next.length - 1];
+      if (activeThreadId && lastMessage?.id === messageId) {
+        setThreads((threadsPrev) =>
+          threadsPrev.map((chat) =>
+            chat.id === activeThreadId
+              ? { ...chat, preview: content, time: lastMessage.time }
+              : chat
+          )
+        );
+      }
+      return next;
+    });
     try {
       await api.updateMessage(messageId, content);
     } catch (error) {
@@ -393,13 +479,26 @@ function App() {
     if (!messageId) {
       return;
     }
+    setMessages((prev) => {
+      const nextMessages = prev.filter((item) => item.id !== messageId);
+      if (activeThreadId) {
+        const lastMessage = nextMessages[nextMessages.length - 1];
+        setThreads((threadsPrev) =>
+          threadsPrev.map((chat) =>
+            chat.id === activeThreadId
+              ? {
+                  ...chat,
+                  preview: lastMessage?.content || "",
+                  time: lastMessage?.time || "",
+                }
+              : chat
+          )
+        );
+      }
+      return nextMessages;
+    });
     try {
       await api.deleteMessage(messageId);
-      if (activeThreadId) {
-        const data = await api.messages(activeThreadId);
-        setMessages(data.messages);
-        await loadChats(activeThreadId);
-      }
     } catch (error) {
       // ignore
     }
