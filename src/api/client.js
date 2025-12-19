@@ -57,6 +57,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ login }),
     }),
+  deleteChat: (chatId) =>
+    request(`/api/chats/${chatId}`, {
+      method: "DELETE",
+    }),
   searchUsers: (query) =>
     request(`/api/users?query=${encodeURIComponent(query)}`),
   messages: (chatId) => request(`/api/chats/${chatId}/messages`),

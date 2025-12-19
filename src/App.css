@@ -622,6 +622,12 @@ body,
   gap: 12px;
 }
 
+.chat-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .chat-title-row {
   display: flex;
   align-items: center;

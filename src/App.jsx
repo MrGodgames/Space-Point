@@ -349,6 +349,27 @@ function App() {
     socketRef.current?.emit("typing", { chatId: activeThreadId, isTyping });
   };
 
+  const handleDeleteChat = async () => {
+    if (!activeThreadId) {
+      return;
+    }
+
+    if (!window.confirm("Удалить чат?")) {
+      return;
+    }
+
+    try {
+      await api.deleteChat(activeThreadId);
+      await loadChats();
+      setMessages([]);
+      if (isMobile) {
+        setShowChat(false);
+      }
+    } catch (error) {
+      // ignore
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="auth">
@@ -532,6 +553,7 @@ function App() {
                 onTyping={handleTyping}
                 typingUsers={activeTyping}
                 currentUserId={user?.id}
+                onDeleteChat={handleDeleteChat}
               />
             )}
           </>
@@ -569,6 +591,7 @@ function App() {
               onTyping={handleTyping}
               typingUsers={activeTyping}
               currentUserId={user?.id}
+              onDeleteChat={handleDeleteChat}
             />
           </>
         )}

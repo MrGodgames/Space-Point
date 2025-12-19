@@ -109,13 +109,21 @@ const fetchChatForUser = async (chatId, userId) => {
       COUNT(DISTINCT chat_members.user_id)::int AS members,
       MAX(messages.created_at) AS last_message_at,
       (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
-      (ARRAY_REMOVE(ARRAY_AGG(CASE WHEN users.id <> $2 THEN COALESCE(NULLIF(TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, '')), ''), users.login) END), NULL))[1] AS direct_title
+      direct_user.direct_title
     FROM chats
     JOIN chat_members ON chat_members.chat_id = chats.id
     JOIN users ON users.id = chat_members.user_id
     LEFT JOIN messages ON messages.chat_id = chats.id
+    LEFT JOIN LATERAL (
+      SELECT
+        COALESCE(NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), ''), u2.login) AS direct_title
+      FROM chat_members cm2
+      JOIN users u2 ON u2.id = cm2.user_id
+      WHERE cm2.chat_id = chats.id AND u2.id <> $2
+      LIMIT 1
+    ) AS direct_user ON chats.is_direct = true
     WHERE chat_members.user_id = $2 AND chats.id = $1
-    GROUP BY chats.id`,
+    GROUP BY chats.id, direct_user.direct_title`,
     [chatId, userId]
   );
 
@@ -365,16 +373,24 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
         chats.status,
         chats.location,
         chats.is_direct,
-      COUNT(DISTINCT chat_members.user_id)::int AS members,
+        COUNT(DISTINCT chat_members.user_id)::int AS members,
         MAX(messages.created_at) AS last_message_at,
-      (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
-      (ARRAY_REMOVE(ARRAY_AGG(CASE WHEN users.id <> $1 THEN COALESCE(NULLIF(TRIM(COALESCE(users.first_name, '') || ' ' || COALESCE(users.last_name, '')), ''), users.login) END), NULL))[1] AS direct_title
-    FROM chats
-    JOIN chat_members ON chat_members.chat_id = chats.id
-    JOIN users ON users.id = chat_members.user_id
+        (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
+        direct_user.direct_title
+      FROM chats
+      JOIN chat_members ON chat_members.chat_id = chats.id
+      JOIN users ON users.id = chat_members.user_id
       LEFT JOIN messages ON messages.chat_id = chats.id
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), ''), u2.login) AS direct_title
+        FROM chat_members cm2
+        JOIN users u2 ON u2.id = cm2.user_id
+        WHERE cm2.chat_id = chats.id AND u2.id <> $1
+        LIMIT 1
+      ) AS direct_user ON chats.is_direct = true
       WHERE chat_members.user_id = $1
-      GROUP BY chats.id
+      GROUP BY chats.id, direct_user.direct_title
       ORDER BY last_message_at DESC NULLS LAST`,
       [req.user.id]
     );
@@ -671,6 +687,42 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
     });
 
     return res.status(201).json({ message: result.rows[0] });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
+  const chatId = Number(req.params.id);
+  if (!chatId) {
+    return res.status(400).json({ error: "Некорректный чат" });
+  }
+
+  try {
+    const memberCheck = await pool.query(
+      `SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
+      [chatId, req.user.id]
+    );
+
+    if (memberCheck.rowCount === 0) {
+      return res.status(403).json({ error: "Нет доступа к чату" });
+    }
+
+    await pool.query(
+      `DELETE FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
+      [chatId, req.user.id]
+    );
+
+    const remaining = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM chat_members WHERE chat_id = $1`,
+      [chatId]
+    );
+
+    if (remaining.rows[0].count === 0) {
+      await pool.query(`DELETE FROM chats WHERE id = $1`, [chatId]);
+    }
+
+    return res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ error: "Ошибка сервера" });
   }

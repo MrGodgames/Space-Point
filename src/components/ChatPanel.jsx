@@ -11,6 +11,7 @@ function ChatPanel({
   onTyping,
   typingUsers = [],
   currentUserId,
+  onDeleteChat,
 }) {
   const [draft, setDraft] = useState("");
   const typingTimeout = useRef(null);
@@ -103,11 +104,16 @@ function ChatPanel({
             {thread.is_direct ? thread.location : `${thread.members} · ${thread.location}`}
           </p>
         </div>
-        {!thread.is_direct && (
-          <button className="ghost" type="button" onClick={onAddMember}>
-            Добавить участника
+        <div className="chat-actions">
+          {!thread.is_direct && (
+            <button className="ghost" type="button" onClick={onAddMember}>
+              Добавить участника
+            </button>
+          )}
+          <button className="ghost" type="button" onClick={onDeleteChat}>
+            Удалить чат
           </button>
-        )}
+        </div>
       </header>
 
       <div className="chat-pills">
