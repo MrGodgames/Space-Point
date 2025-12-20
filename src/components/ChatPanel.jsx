@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 function ChatPanel({
   messages,
@@ -28,6 +29,9 @@ function ChatPanel({
   const fileInputRef = useRef(null);
   const [contextMenu, setContextMenu] = useState(null);
   const menuRef = useRef(null);
+  const [loadedImages, setLoadedImages] = useState({});
+  const [preview, setPreview] = useState(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const prevMessageCount = useRef(messages.length);
   const prevThreadId = useRef(thread?.id);
   const scrollTopRef = useRef(0);
@@ -118,6 +122,9 @@ function ChatPanel({
     setDraft("");
     setAttachments([]);
     setUploadError("");
+    setPreview(null);
+    setIsPreviewLoading(false);
+    setLoadedImages({});
   }, [thread?.id]);
 
   if (!thread) {
@@ -221,6 +228,21 @@ function ChatPanel({
       }
     };
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (!preview) {
+      return;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setPreview(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [preview]);
 
   const handleMessageContextMenu = (event, message, isSelf) => {
     const isRightButton = event.button === 2 || (event.buttons & 2) === 2;
@@ -338,24 +360,68 @@ function ChatPanel({
                         <p>{message.reply.content}</p>
                       </div>
                     )}
-                  {message.content && <p>{message.content}</p>}
+                    {message.content && <p>{message.content}</p>}
                     {message.attachments?.length > 0 && (
                       <div className="attachments-list">
                         {message.attachments.map((file) => (
-                          <a
+                          <div
                             key={file.object_key}
                             className="attachment-item"
-                            href={file.url}
-                            target="_blank"
-                            rel="noreferrer"
                           >
-                            {file.mime_type.startsWith("image/") && (
-                              <img src={file.url} alt={file.original_name} />
+                            {file.mime_type.startsWith("image/") ? (
+                              <button
+                                className="attachment-image"
+                                type="button"
+                                onClick={() => {
+                                  setPreview({
+                                    url: file.url,
+                                    name: file.original_name,
+                                  });
+                                  setIsPreviewLoading(true);
+                                }}
+                              >
+                                <span
+                                  className={`image-frame ${
+                                    loadedImages[file.object_key]
+                                      ? "is-loaded"
+                                      : ""
+                                  }`}
+                                >
+                                  <span className="image-spinner" aria-hidden />
+                                  <img
+                                    src={file.url}
+                                    alt={file.original_name}
+                                    onLoad={() =>
+                                      setLoadedImages((prev) => ({
+                                        ...prev,
+                                        [file.object_key]: true,
+                                      }))
+                                    }
+                                    onError={() =>
+                                      setLoadedImages((prev) => ({
+                                        ...prev,
+                                        [file.object_key]: true,
+                                      }))
+                                    }
+                                  />
+                                </span>
+                                <span className="attachment-name">
+                                  {file.original_name}
+                                </span>
+                              </button>
+                            ) : (
+                              <a
+                                className="attachment-link"
+                                href={file.url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <span className="attachment-name">
+                                  {file.original_name}
+                                </span>
+                              </a>
                             )}
-                            <span className="attachment-name">
-                              {file.original_name}
-                            </span>
-                          </a>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -527,6 +593,40 @@ function ChatPanel({
             )}
         </footer>
       </div>
+      {preview &&
+        createPortal(
+          <div
+            className="image-preview"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setPreview(null);
+              }
+            }}
+          >
+            <div className="image-preview-card">
+              <button
+                className="ghost image-preview-close"
+                type="button"
+                onClick={() => setPreview(null)}
+              >
+                Закрыть
+              </button>
+              <div className="image-preview-frame">
+                {isPreviewLoading && (
+                  <div className="image-preview-spinner" aria-hidden />
+                )}
+                <img
+                  src={preview.url}
+                  alt={preview.name}
+                  onLoad={() => setIsPreviewLoading(false)}
+                  onError={() => setIsPreviewLoading(false)}
+                />
+              </div>
+              <div className="image-preview-name">{preview.name}</div>
+            </div>
+          </div>,
+          document.body
+        )}
     </section>
   );
 }
