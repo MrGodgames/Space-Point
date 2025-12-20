@@ -13,7 +13,12 @@ import { createReadStream } from "fs";
 import sharp from "sharp";
 import { pool } from "./db.js";
 import { authMiddleware } from "./middleware/auth.js";
-import { uploadObject, getSignedDownloadUrl, bucketName } from "./storage.js";
+import {
+  uploadObject,
+  getSignedDownloadUrl,
+  bucketName,
+  deleteObject,
+} from "./storage.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -912,6 +917,25 @@ app.delete("/api/messages/:id", authMiddleware, async (req, res) => {
       return res.status(403).json({ error: "Нет доступа" });
     }
 
+    const attachmentsResult = await pool.query(
+      `SELECT object_key FROM message_attachments WHERE message_id = $1`,
+      [messageId]
+    );
+
+    if (attachmentsResult.rowCount > 0) {
+      const deletions = attachmentsResult.rows.map((row) =>
+        deleteObject(row.object_key)
+      );
+      const results = await Promise.allSettled(deletions);
+      const failures = results.filter((result) => result.status === "rejected");
+      if (failures.length > 0) {
+        console.warn(
+          "Failed to delete some attachments from storage",
+          failures.length
+        );
+      }
+    }
+
     await pool.query(`DELETE FROM messages WHERE id = $1`, [messageId]);
 
     io.to(`chat:${message.chat_id}`).emit("message:deleted", {
@@ -952,6 +976,30 @@ app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
     );
 
     if (remaining.rows[0].count === 0) {
+      const attachmentsResult = await pool.query(
+        `SELECT message_attachments.object_key
+         FROM message_attachments
+         JOIN messages ON messages.id = message_attachments.message_id
+         WHERE messages.chat_id = $1`,
+        [chatId]
+      );
+
+      if (attachmentsResult.rowCount > 0) {
+        const deletions = attachmentsResult.rows.map((row) =>
+          deleteObject(row.object_key)
+        );
+        const results = await Promise.allSettled(deletions);
+        const failures = results.filter(
+          (result) => result.status === "rejected"
+        );
+        if (failures.length > 0) {
+          console.warn(
+            "Failed to delete some chat attachments from storage",
+            failures.length
+          );
+        }
+      }
+
       await pool.query(`DELETE FROM chats WHERE id = $1`, [chatId]);
     }
 

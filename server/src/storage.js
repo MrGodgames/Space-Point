@@ -1,5 +1,10 @@
 import "dotenv/config";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const {
@@ -43,4 +48,13 @@ export const getSignedDownloadUrl = async (key, expiresIn = 3600) => {
   });
 
   return getSignedUrl(s3Client, command, { expiresIn });
+};
+
+export const deleteObject = async (key) => {
+  const command = new DeleteObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+  });
+
+  await s3Client.send(command);
 };
