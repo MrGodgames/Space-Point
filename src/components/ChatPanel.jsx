@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 function ChatPanel({
@@ -32,6 +32,7 @@ function ChatPanel({
   const [loadedImages, setLoadedImages] = useState({});
   const [preview, setPreview] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const messageRefs = useRef(new Map());
   const prevMessageCount = useRef(messages.length);
   const prevThreadId = useRef(thread?.id);
   const scrollTopRef = useRef(0);
@@ -65,6 +66,16 @@ function ChatPanel({
       container.removeEventListener("scroll", updatePosition);
     };
   }, [thread?.id]);
+
+  const messageById = useMemo(() => {
+    const next = new Map();
+    messages.forEach((message) => {
+      if (message.id != null) {
+        next.set(message.id, message);
+      }
+    });
+    return next;
+  }, [messages]);
 
   useEffect(() => {
     const container = chatBodyRef.current;
@@ -335,11 +346,30 @@ function ChatPanel({
                 message.user_id != null &&
                 Number(message.user_id) === Number(currentUserId);
               const isSelf = message.isSelf === true || isSelfById;
+              const replyTarget =
+                message.reply_to != null
+                  ? messageById.get(message.reply_to)
+                  : null;
+              const replyImage = replyTarget?.attachments?.find((file) =>
+                file.mime_type?.startsWith("image/")
+              );
+              const replyText =
+                message.reply?.content || (replyImage ? "Вложение" : "");
 
               return (
                 <div
                   key={message.id ?? `${message.author}-${message.time}`}
                   className={`message ${isSelf ? "self" : ""}`}
+                  ref={(node) => {
+                    if (message.id == null) {
+                      return;
+                    }
+                    if (node) {
+                      messageRefs.current.set(message.id, node);
+                    } else {
+                      messageRefs.current.delete(message.id);
+                    }
+                  }}
                   onContextMenuCapture={(event) =>
                     handleMessageContextMenu(event, message, isSelf)
                   }
@@ -355,10 +385,47 @@ function ChatPanel({
                   </div>
                   <div className="bubble">
                     {message.reply && (
-                      <div className="reply-preview">
-                        <span>{message.reply.author}</span>
-                        <p>{message.reply.content}</p>
-                      </div>
+                      <button
+                        className="reply-preview"
+                        type="button"
+                        onClick={() => {
+                          if (message.reply_to == null) {
+                            return;
+                          }
+                          const target = messageRefs.current.get(
+                            message.reply_to
+                          );
+                          if (target) {
+                            const container = chatBodyRef.current;
+                            if (!container) {
+                              return;
+                            }
+                            const targetRect = target.getBoundingClientRect();
+                            const containerRect = container.getBoundingClientRect();
+                            const targetTop =
+                              targetRect.top - containerRect.top + container.scrollTop;
+                            const centeredTop =
+                              targetTop -
+                              (container.clientHeight / 2 - targetRect.height / 2);
+                            container.scrollTo({
+                              top: Math.max(0, centeredTop),
+                              behavior: "smooth",
+                            });
+                          }
+                        }}
+                      >
+                        {replyImage && (
+                          <img
+                            className="reply-preview-thumb"
+                            src={replyImage.url}
+                            alt={replyImage.original_name}
+                          />
+                        )}
+                        <div className="reply-preview-text">
+                          <span>{message.reply.author}</span>
+                          <p>{replyText}</p>
+                        </div>
+                      </button>
                     )}
                     {message.content && <p>{message.content}</p>}
                     {message.attachments?.length > 0 && (
@@ -404,9 +471,6 @@ function ChatPanel({
                                       }))
                                     }
                                   />
-                                </span>
-                                <span className="attachment-name">
-                                  {file.original_name}
                                 </span>
                               </button>
                             ) : (
@@ -583,7 +647,10 @@ function ChatPanel({
               </div>
             )}
             {isUploading && (
-              <div className="upload-status">Загрузка файлов...</div>
+              <div className="upload-status">
+                <span className="upload-spinner" aria-hidden />
+                Загрузка файлов...
+              </div>
             )}
             {uploadError && <div className="auth-error">{uploadError}</div>}
             {typingUsers.length > 0 && (
