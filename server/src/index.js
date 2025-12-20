@@ -544,12 +544,12 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
           isRead: message.is_read,
           reply_to: message.reply_to,
           edited_at: message.edited_at,
-          reply: message.reply_content
+          reply: message.reply_to
             ? {
-                content: message.reply_content,
+                content: message.reply_content ?? "",
                 author: message.reply_first_name
                   ? `${message.reply_first_name}${message.reply_last_name ? ` ${message.reply_last_name}` : ""}`
-                  : message.reply_login,
+                  : message.reply_login || "Неизвестно",
               }
             : null,
           attachments: withUrls,
