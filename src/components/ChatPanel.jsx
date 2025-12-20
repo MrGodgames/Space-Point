@@ -336,25 +336,26 @@ function ChatPanel({
                       </div>
                     )}
                   {message.content && <p>{message.content}</p>}
-                  {message.attachments?.length > 0 && (
-                    <div className="attachments-list">
-                      {message.attachments.map((file) => (
-                        <a
-                          key={file.object_key}
-                          className="attachment-item"
-                          href={file.url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {file.mime_type.startsWith("image/") ? (
-                            <img src={file.url} alt={file.original_name} />
-                          ) : (
-                            <span>{file.original_name}</span>
-                          )}
-                        </a>
-                      ))}
-                    </div>
-                  )}
+                    {message.attachments?.length > 0 && (
+                      <div className="attachments-list">
+                        {message.attachments.map((file) => (
+                          <a
+                            key={file.object_key}
+                            className="attachment-item"
+                            href={file.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {file.mime_type.startsWith("image/") && (
+                              <img src={file.url} alt={file.original_name} />
+                            )}
+                            <span className="attachment-name">
+                              {file.original_name}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
                     <div className="bubble-time">
                       {message.time}
                       {message.edited_at && (

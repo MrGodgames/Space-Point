@@ -802,6 +802,12 @@ body,
   border-radius: 10px;
 }
 
+.attachment-name {
+  display: block;
+  margin-top: 6px;
+  color: rgba(236, 242, 255, 0.75);
+}
+
 .bubble-time {
   margin-top: 8px;
   font-size: 10px;
