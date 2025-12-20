@@ -308,8 +308,11 @@ function ChatPanel({
             <div className="empty-state">Сообщений пока нет</div>
           ) : (
             messages.map((message) => {
-              const isSelf =
-                message.isSelf ?? message.user_id === currentUserId;
+              const isSelfById =
+                currentUserId != null &&
+                message.user_id != null &&
+                Number(message.user_id) === Number(currentUserId);
+              const isSelf = message.isSelf === true || isSelfById;
 
               return (
                 <div
