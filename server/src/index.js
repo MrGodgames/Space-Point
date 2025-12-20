@@ -554,6 +554,7 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
 
     return res.json({ messages });
   } catch (error) {
+    console.error("GET /api/chats/:id/messages failed", error);
     return res.status(500).json({ error: "Ошибка сервера" });
   }
 });
