@@ -31,10 +31,33 @@ function ChatPanel({
   const [loadedImages, setLoadedImages] = useState({});
   const [preview, setPreview] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const messageRefs = useRef(new Map());
   const prevMessageCount = useRef(messages.length);
   const prevThreadId = useRef(thread?.id);
   const scrollTopRef = useRef(0);
+  const headerMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!isHeaderMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event) => {
+      if (headerMenuRef.current?.contains(event.target)) {
+        return;
+      }
+      setIsHeaderMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("resize", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("resize", handlePointerDown);
+    };
+  }, [isHeaderMenuOpen]);
 
   useEffect(() => {
     return () => {
@@ -273,17 +296,35 @@ function ChatPanel({
               Добавить участника
             </button>
           )}
-          <button className="ghost" type="button" onClick={onDeleteChat}>
-            Удалить чат
-          </button>
-          <button className="ghost icon-button chat-icon" type="button" aria-label="Меню">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path
-                d="M6 12a2 2 0 1 0 0 .01V12zm6 0a2 2 0 1 0 0 .01V12zm6 0a2 2 0 1 0 0 .01V12z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
+          <div className="header-menu" ref={headerMenuRef}>
+            <button
+              className="ghost icon-button chat-icon"
+              type="button"
+              aria-label="Меню"
+              onClick={() => setIsHeaderMenuOpen((prev) => !prev)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path
+                  d="M6 12a2 2 0 1 0 0 .01V12zm6 0a2 2 0 1 0 0 .01V12zm6 0a2 2 0 1 0 0 .01V12z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
+            {isHeaderMenuOpen && (
+              <div className="header-menu-panel">
+                <button
+                  className="ghost danger"
+                  type="button"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    onDeleteChat?.();
+                  }}
+                >
+                  Удалить чат
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -552,25 +593,36 @@ function ChatPanel({
         <footer className="composer">
           <div className="composer-input">
             <form className="composer-form" onSubmit={handleSubmit}>
-                <button
-                  className="icon-button composer-attach"
-                  type="button"
-                  aria-label="Прикрепить файл"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  +
-                </button>
-                <input
-                  ref={fileInputRef}
-                  className="file-input"
-                  type="file"
-                  multiple
-                  onChange={handleFilesSelected}
-                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z"
-                />
-                <input
-                  type="text"
-                  value={draft}
+              <button
+                className="composer-icon composer-attach"
+                type="button"
+                aria-label="Прикрепить файл"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <span className="composer-attach-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path
+                      d="M12 5v14M5 12h14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+              <input
+                ref={fileInputRef}
+                className="file-input"
+                type="file"
+                multiple
+                onChange={handleFilesSelected}
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z"
+              />
+              <input
+                className="composer-field"
+                type="text"
+                value={draft}
                 onChange={(event) => {
                   setDraft(event.target.value);
                   onTyping?.(true);
@@ -589,7 +641,34 @@ function ChatPanel({
                       : `Передать: ${thread.title}`
                 }
               />
-              <button className="primary composer-send" type="submit" aria-label="Отправить сообщение">
+              <button
+                className="composer-icon composer-mic"
+                type="button"
+                aria-label="Запись голоса"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zm5 9a5 5 0 0 1-10 0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M12 17v4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+              <button
+                className="composer-icon composer-send"
+                type="submit"
+                aria-label="Отправить сообщение"
+              >
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path
                     d="M3 11.4l16.2-6.7a.7.7 0 0 1 .9.9L13.4 21a.7.7 0 0 1-1.3-.1l-1.6-5-5-1.6a.7.7 0 0 1-.1-1.3z"

@@ -738,6 +738,40 @@ body,
   align-items: center;
 }
 
+.header-menu {
+  position: relative;
+}
+
+.header-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 18, 34, 0.92);
+  box-shadow: 0 12px 24px rgba(7, 12, 22, 0.35);
+  backdrop-filter: blur(10px);
+  z-index: 30;
+}
+
+.header-menu-panel .ghost {
+  justify-content: flex-start;
+  width: 100%;
+  padding: 10px 12px;
+}
+
+.ghost.danger {
+  border-color: rgba(255, 107, 107, 0.4);
+  color: #ff6b6b;
+}
+
+.ghost.danger:hover {
+  border-color: rgba(255, 107, 107, 0.7);
+  background: rgba(120, 30, 35, 0.25);
+}
+
 .chat-title-row {
   display: flex;
   align-items: center;
@@ -1300,14 +1334,16 @@ body,
 .composer-input {
   display: block;
   position: relative;
-  width: min(960px, 100%);
+  width: min(980px, 100%);
   margin: 0 auto;
-  padding: 12px 14px 14px;
-  border-radius: 20px;
-  background: rgba(10, 18, 34, 0.12);
-  border: 1px solid rgba(107, 230, 255, 0.22);
-  backdrop-filter: blur(8px);
-  overflow: hidden;
+  padding: 12px 16px;
+  border-radius: 28px;
+  background: rgba(10, 16, 32, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 18px 40px rgba(4, 8, 18, 0.35);
+  backdrop-filter: blur(10px);
+  overflow: visible;
   pointer-events: auto;
 }
 
@@ -1322,48 +1358,94 @@ body,
   display: none;
 }
 
-.composer-form input {
+.composer-field {
   flex: 1;
-  padding: 14px 54px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
   color: #ecf2ff;
-  font-size: 14px;
+  font-size: 15px;
+}
+
+.composer-field::placeholder {
+  color: rgba(236, 242, 255, 0.45);
+}
+
+.composer-icon {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(236, 242, 255, 0.85);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease,
+    background 0.2s ease;
+  transform-origin: center;
+}
+
+.composer-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .composer-attach {
-  position: absolute;
-  left: 12px;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  font-size: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(236, 242, 255, 0.85);
+  transform: rotate(0deg) scale(1);
+  will-change: transform;
+  transition: transform 0.25s ease;
+}
+
+.composer-mic {
+  color: rgba(236, 242, 255, 0.75);
 }
 
 .composer-send {
-  position: absolute;
-  right: 12px;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  color: #05060f;
-  box-shadow: 0 6px 16px rgba(109, 124, 255, 0.35);
+  background: linear-gradient(135deg, #4bb9ff, #2576ff);
+  border-color: rgba(63, 150, 255, 0.6);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(30, 118, 240, 0.35);
 }
 
-.composer-send svg {
-  width: 14px;
-  height: 14px;
+.composer-icon:not(.composer-attach):hover {
+  transform: translateY(-1px);
+  border-color: rgba(107, 230, 255, 0.45);
+}
+
+.composer-attach:hover {
+  border-color: rgba(107, 230, 255, 0.65);
+  background: rgba(75, 185, 255, 0.12);
+  transform: translateY(-1px) rotate(90deg) scale(1.05);
+  animation: attachSpin 0.35s ease-out;
+}
+
+.composer-attach-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.composer-attach-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+@keyframes attachSpin {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  60% {
+    transform: translateY(-1px) rotate(102deg) scale(1.07);
+  }
+  100% {
+    transform: translateY(-1px) rotate(90deg) scale(1.05);
+  }
 }
 
 .icon-button {
