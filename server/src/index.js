@@ -49,6 +49,63 @@ const createToken = (user) =>
   });
 
 const onlineUsers = new Map();
+const presenceState = new Map();
+
+const persistPresence = (userId, { lastActiveAt, lastSeenAt }) => {
+  const fields = [];
+  const values = [userId];
+
+  if (lastActiveAt) {
+    fields.push(`last_active_at = $${values.length + 1}`);
+    values.push(lastActiveAt);
+  }
+  if (lastSeenAt) {
+    fields.push(`last_seen_at = $${values.length + 1}`);
+    values.push(lastSeenAt);
+  }
+
+  if (fields.length === 0) {
+    return;
+  }
+
+  void pool
+    .query(`UPDATE users SET ${fields.join(", ")} WHERE id = $1`, values)
+    .catch(() => {});
+};
+
+const touchPresence = (userId, updates = {}, shouldEmit = true) => {
+  const current = presenceState.get(userId) || {};
+  const next = { ...current, ...updates };
+  presenceState.set(userId, next);
+
+  if (!shouldEmit) {
+    return;
+  }
+
+  io.emit("presence:update", {
+    userId,
+    status: onlineUsers.has(userId) ? "online" : "offline",
+    lastActiveAt: next.lastActiveAt || null,
+    lastSeenAt: next.lastSeenAt || null,
+  });
+};
+
+const markActive = (
+  userId,
+  { emit = true, persist = true } = {}
+) => {
+  const now = new Date().toISOString();
+  if (persist) {
+    persistPresence(userId, { lastActiveAt: now });
+  }
+  touchPresence(userId, { lastActiveAt: now }, emit);
+};
+
+const markOffline = (userId) => {
+  const now = new Date().toISOString();
+  persistPresence(userId, { lastSeenAt: now });
+  touchPresence(userId, { lastSeenAt: now }, true);
+};
 
 const addSocket = (userId, socketId) => {
   if (!onlineUsers.has(userId)) {
@@ -95,6 +152,7 @@ const formatChatRow = (chat) => ({
     : "",
   unread: 0,
   is_direct: chat.is_direct,
+  direct_user_id: chat.direct_user_id ?? null,
 });
 
 const enrichAttachments = async (attachments) => {
@@ -118,13 +176,15 @@ const fetchChatForUser = async (chatId, userId) => {
       COUNT(DISTINCT chat_members.user_id)::int AS members,
       MAX(messages.created_at) AS last_message_at,
       (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
-      direct_user.direct_title
+      direct_user.direct_title,
+      direct_user.direct_user_id
     FROM chats
     JOIN chat_members ON chat_members.chat_id = chats.id
     JOIN users ON users.id = chat_members.user_id
     LEFT JOIN messages ON messages.chat_id = chats.id
     LEFT JOIN LATERAL (
-      SELECT
+        SELECT
+        u2.id AS direct_user_id,
         COALESCE(NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), ''), u2.login) AS direct_title
       FROM chat_members cm2
       JOIN users u2 ON u2.id = cm2.user_id
@@ -132,7 +192,7 @@ const fetchChatForUser = async (chatId, userId) => {
       LIMIT 1
     ) AS direct_user ON chats.is_direct = true
     WHERE chat_members.user_id = $2 AND chats.id = $1
-    GROUP BY chats.id, direct_user.direct_title`,
+    GROUP BY chats.id, direct_user.direct_title, direct_user.direct_user_id`,
     [chatId, userId]
   );
 
@@ -162,7 +222,7 @@ io.on("connection", async (socket) => {
   const userId = socket.user.id;
   addSocket(userId, socket.id);
 
-  io.emit("presence:update", { userId, status: "online" });
+  markActive(userId);
 
   socket.on("join_chats", ({ chatIds }) => {
     if (!Array.isArray(chatIds)) {
@@ -177,6 +237,7 @@ io.on("connection", async (socket) => {
     if (!chatId) {
       return;
     }
+    markActive(userId, { emit: false, persist: false });
     try {
       const userResult = await pool.query(
         `SELECT first_name, last_name, login FROM users WHERE id = $1`,
@@ -204,6 +265,7 @@ io.on("connection", async (socket) => {
     if (!chatId) {
       return;
     }
+    markActive(userId, { emit: false, persist: false });
 
     try {
       const unreadResult = await pool.query(
@@ -245,8 +307,12 @@ io.on("connection", async (socket) => {
   socket.on("disconnect", () => {
     const isOffline = removeSocket(userId, socket.id);
     if (isOffline) {
-      io.emit("presence:update", { userId, status: "offline" });
+      markOffline(userId);
     }
+  });
+
+  socket.on("presence:ping", () => {
+    markActive(userId, { emit: true, persist: false });
   });
 });
 
@@ -432,21 +498,23 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        chats.id,
-        chats.title,
-        chats.status,
-        chats.location,
-        chats.is_direct,
-        COUNT(DISTINCT chat_members.user_id)::int AS members,
-        MAX(messages.created_at) AS last_message_at,
-        (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
-        direct_user.direct_title
+      chats.id,
+      chats.title,
+      chats.status,
+      chats.location,
+      chats.is_direct,
+      COUNT(DISTINCT chat_members.user_id)::int AS members,
+      MAX(messages.created_at) AS last_message_at,
+      (ARRAY_REMOVE(ARRAY_AGG(messages.content ORDER BY messages.created_at DESC), NULL))[1] AS last_message,
+      direct_user.direct_title,
+      direct_user.direct_user_id
       FROM chats
       JOIN chat_members ON chat_members.chat_id = chats.id
       JOIN users ON users.id = chat_members.user_id
       LEFT JOIN messages ON messages.chat_id = chats.id
       LEFT JOIN LATERAL (
         SELECT
+          u2.id AS direct_user_id,
           COALESCE(NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), ''), u2.login) AS direct_title
         FROM chat_members cm2
         JOIN users u2 ON u2.id = cm2.user_id
@@ -454,7 +522,7 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
         LIMIT 1
       ) AS direct_user ON chats.is_direct = true
       WHERE chat_members.user_id = $1
-      GROUP BY chats.id, direct_user.direct_title
+      GROUP BY chats.id, direct_user.direct_title, direct_user.direct_user_id
       ORDER BY last_message_at DESC NULLS LAST`,
       [req.user.id]
     );
@@ -725,6 +793,60 @@ app.get("/api/users", authMiddleware, async (req, res) => {
   }
 });
 
+app.get("/api/presence", authMiddleware, async (req, res) => {
+  const rawIds = req.query.userIds;
+  if (!rawIds) {
+    return res.json({ presence: [] });
+  }
+
+  const ids = rawIds
+    .split(",")
+    .map((value) => Number(value))
+    .filter(Boolean);
+
+  if (ids.length === 0) {
+    return res.json({ presence: [] });
+  }
+
+  let dbRows = [];
+  try {
+    const dbResult = await pool.query(
+      `SELECT id, last_seen_at, last_active_at
+       FROM users
+       WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+    dbRows = dbResult.rows || [];
+  } catch (error) {
+    dbRows = [];
+  }
+
+  const dbPresence = new Map(
+    dbRows.map((row) => [
+      row.id,
+      {
+        lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at).toISOString() : null,
+        lastActiveAt: row.last_active_at
+          ? new Date(row.last_active_at).toISOString()
+          : null,
+      },
+    ])
+  );
+
+  const presence = ids.map((userId) => {
+    const state = presenceState.get(userId);
+    const dbState = dbPresence.get(userId) || {};
+    return {
+      userId,
+      status: onlineUsers.has(userId) ? "online" : "offline",
+      lastActiveAt: state?.lastActiveAt || dbState.lastActiveAt || null,
+      lastSeenAt: state?.lastSeenAt || dbState.lastSeenAt || null,
+    };
+  });
+
+  return res.json({ presence });
+});
+
 app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
   const chatId = Number(req.params.id);
   const { content = "", replyTo, attachments = [] } = req.body;
@@ -734,6 +856,7 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
   }
 
   try {
+    markActive(req.user.id, { emit: false, persist: true });
     const memberCheck = await pool.query(
       `SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
       [chatId, req.user.id]

@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 function ConversationList({
   threads,
   activeId,
+  presenceByUser,
+  presenceNow,
+  getPresenceMeta,
   onSelect,
   onCreateChat,
   onCreateDirect,
@@ -10,8 +13,6 @@ function ConversationList({
 }) {
   const [isCreating, setIsCreating] = useState(false);
   const [title, setTitle] = useState("");
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const searchRef = useRef(null);
   const listRef = useRef(null);
   const menuRef = useRef(null);
   const [contextMenu, setContextMenu] = useState(null);
@@ -27,12 +28,6 @@ function ConversationList({
     setTitle("");
     setIsCreating(false);
   };
-
-  useEffect(() => {
-    if (isSearchOpen) {
-      searchRef.current?.focus();
-    }
-  }, [isSearchOpen]);
 
   useEffect(() => {
     if (!contextMenu) {
@@ -110,18 +105,20 @@ function ConversationList({
       <header className="stack-header">
         <div>
           <p className="section-title">Диалоги</p>
-          <p className="section-sub">Многоточечные передачи</p>
+          <p className="section-sub">Недавние передачи</p>
         </div>
-        <div className="search">
-          <button
-            className="search-toggle"
-            type="button"
-            aria-label={isSearchOpen ? "Скрыть поиск" : "Открыть поиск"}
-            onClick={() => setIsSearchOpen(true)}
-          >
+        <div className="search search-inline">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path
+              d="M10.5 4a6.5 6.5 0 0 1 5.2 10.4l3.45 3.45a1 1 0 0 1-1.42 1.41l-3.44-3.44A6.5 6.5 0 1 1 10.5 4zm0 2a4.5 4.5 0 1 0 0 9a4.5 4.5 0 0 0 0-9z"
+              fill="currentColor"
+            />
+          </svg>
+          <input type="text" placeholder="Поиск..." />
+          <button className="icon-button filter-button" type="button" aria-label="Фильтры">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path
-                d="M10.5 4a6.5 6.5 0 0 1 5.2 10.4l3.45 3.45a1 1 0 0 1-1.42 1.41l-3.44-3.44A6.5 6.5 0 1 1 10.5 4zm0 2a4.5 4.5 0 1 0 0 9a4.5 4.5 0 0 0 0-9z"
+                d="M4 5h16a1 1 0 0 1 .8 1.6l-6 8v3.4a1 1 0 0 1-.6.9l-3 1.3a1 1 0 0 1-1.4-.9v-4.7l-6-8A1 1 0 0 1 4 5z"
                 fill="currentColor"
               />
             </svg>
@@ -172,36 +169,62 @@ function ConversationList({
         {threads.length === 0 ? (
           <div className="empty-state">Чатов пока нет</div>
         ) : (
-          threads.map((thread) => (
-            <article
-              key={thread.id}
-              className={`thread-card ${thread.id === activeId ? "active" : ""}`}
-              onContextMenuCapture={(event) =>
-                handleThreadContextMenu(event, thread)
-              }
-              onPointerUp={(event) =>
-                handleThreadContextMenu(event, thread)
-              }
-            >
-              <div className="thread-top">
-                <div>
-                  <p className="thread-title">{thread.title}</p>
-                  <p className="thread-status">{thread.status}</p>
+          threads.map((thread) => {
+            const presence =
+              thread.is_direct && thread.direct_user_id
+                ? presenceByUser?.[thread.direct_user_id]
+                : null;
+            const presenceMeta = getPresenceMeta?.(presence, presenceNow);
+            const initials = thread.title
+              .split(" ")
+              .map((part) => part[0])
+              .join("");
+            const statusLabel = thread.is_direct
+              ? presenceMeta?.label || "Не в сети"
+              : thread.status;
+            const tone = presenceMeta?.tone || "offline";
+
+            return (
+              <article
+                key={thread.id}
+                className={`thread-card ${thread.is_direct ? "direct" : ""} ${
+                  thread.id === activeId ? "active" : ""
+                }`}
+                onContextMenuCapture={(event) =>
+                  handleThreadContextMenu(event, thread)
+                }
+                onPointerUp={(event) =>
+                  handleThreadContextMenu(event, thread)
+                }
+              >
+                <div className="thread-avatar">
+                  <span>{initials}</span>
+                  {thread.is_direct && (
+                    <span className={`presence-dot ${tone}`} aria-hidden />
+                  )}
                 </div>
-                <div className="thread-time">{thread.time}</div>
-              </div>
-              <p className="thread-preview">{thread.preview}</p>
-              {thread.unread > 0 && (
-                <span className="thread-unread">{thread.unread}</span>
-              )}
-              <button
-                className="thread-action"
-                type="button"
-                onClick={() => onSelect?.(thread.id)}
-                aria-label={`Открыть чат ${thread.title}`}
-              />
-            </article>
-          ))
+                <div className="thread-content">
+                  <div className="thread-top">
+                    <div>
+                      <p className="thread-title">{thread.title}</p>
+                      <p className="thread-status">{statusLabel}</p>
+                    </div>
+                    <div className="thread-time">{thread.time}</div>
+                  </div>
+                  <p className="thread-preview">{thread.preview}</p>
+                </div>
+                {thread.unread > 0 && (
+                  <span className="thread-unread">{thread.unread}</span>
+                )}
+                <button
+                  className="thread-action"
+                  type="button"
+                  onClick={() => onSelect?.(thread.id)}
+                  aria-label={`Открыть чат ${thread.title}`}
+                />
+              </article>
+            );
+          })
         )}
         {contextMenu && (
           <div
@@ -223,39 +246,6 @@ function ConversationList({
         )}
       </div>
 
-      {isSearchOpen && (
-        <div
-          className="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setIsSearchOpen(false)}
-        >
-          <div className="modal search-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <p className="modal-title">Поиск по чатам</p>
-                <p className="modal-sub">Введите имя или тему диалога</p>
-              </div>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Закрыть"
-                onClick={() => setIsSearchOpen(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="search search-modal-field">
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Поиск по эфиру"
-              />
-              <span className="search-glow" />
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

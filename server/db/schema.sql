@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   first_name TEXT NOT NULL,
   last_name TEXT,
   status TEXT DEFAULT 'Онлайн',
+  last_seen_at TIMESTAMP WITH TIME ZONE,
+  last_active_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

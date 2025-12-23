@@ -98,6 +98,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ content, replyTo, attachments }),
     }),
+  presence: (userIds) =>
+    request(`/api/presence?userIds=${encodeURIComponent(userIds.join(","))}`),
   speedTest: async (bytes = 200000) => {
     const response = await fetch(`${API_URL}/api/speedtest?bytes=${bytes}`, {
       cache: "no-store",

@@ -5,6 +5,7 @@ function ChatPanel({
   messages,
   thread,
   isMobile,
+  presenceMeta,
   onBack,
   onSend,
   onUpload,
@@ -27,8 +28,6 @@ function ChatPanel({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef(null);
-  const [contextMenu, setContextMenu] = useState(null);
-  const menuRef = useRef(null);
   const [loadedImages, setLoadedImages] = useState({});
   const [preview, setPreview] = useState(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -198,49 +197,6 @@ function ChatPanel({
   }, [editTarget]);
 
   useEffect(() => {
-    if (!contextMenu) {
-      return;
-    }
-
-    const handlePointerDown = (event) => {
-      const isPrimaryClick = event.button === 0 || event.pointerType === "touch";
-      if (!isPrimaryClick) {
-        return;
-      }
-      if (menuRef.current && menuRef.current.contains(event.target)) {
-        return;
-      }
-      setContextMenu(null);
-    };
-
-    const handleClose = () => setContextMenu(null);
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        handleClose();
-      }
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("resize", handleClose);
-    window.addEventListener("keydown", handleKeyDown);
-
-    const container = chatBodyRef.current;
-    if (container) {
-      container.addEventListener("scroll", handleClose);
-    }
-
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("resize", handleClose);
-      window.removeEventListener("keydown", handleKeyDown);
-      if (container) {
-        container.removeEventListener("scroll", handleClose);
-      }
-    };
-  }, [contextMenu]);
-
-  useEffect(() => {
     if (!preview) {
       return;
     }
@@ -255,67 +211,63 @@ function ChatPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [preview]);
 
-  const handleMessageContextMenu = (event, message, isSelf) => {
-    const isRightButton = event.button === 2 || (event.buttons & 2) === 2;
-    const isCtrlClick = event.button === 0 && event.ctrlKey;
-    const isContextMenuEvent = event.type === "contextmenu" || isRightButton || isCtrlClick;
-
-    if (!isContextMenuEvent) {
-      return;
-    }
-
-    event.preventDefault();
-    const itemCount = isSelf ? 3 : 1;
-    const menuWidth = 200;
-    const menuHeight = itemCount * 36 + 16;
-    const container = chatBodyRef.current;
-    const containerRect = container?.getBoundingClientRect();
-
-    const rawX = event.clientX;
-    const rawY = event.clientY;
-
-    let x = rawX;
-    let y = rawY;
-
-    if (container && containerRect) {
-      const offsetX = rawX - containerRect.left + container.scrollLeft;
-      const offsetY = rawY - containerRect.top + container.scrollTop;
-      const maxX = container.scrollLeft + container.clientWidth - menuWidth - 8;
-      const maxY = container.scrollTop + container.clientHeight - menuHeight - 8;
-      x = Math.max(8 + container.scrollLeft, Math.min(offsetX, maxX));
-      y = Math.max(8 + container.scrollTop, Math.min(offsetY, maxY));
-    } else {
-      const maxX = window.innerWidth - menuWidth - 8;
-      const maxY = window.innerHeight - menuHeight - 8;
-      x = Math.max(8, Math.min(rawX, maxX));
-      y = Math.max(8, Math.min(rawY, maxY));
-    }
-
-    setContextMenu({
-      x,
-      y,
-      message,
-      isSelf,
-    });
-  };
-
   return (
     <section className="chat">
       <header className="chat-header">
-        <div>
-          <div className="chat-title-row">
-            {isMobile && (
-              <button className="back-button" type="button" onClick={onBack}>
-                ← Чаты
-              </button>
-            )}
-            <p className="chat-title">{thread.title}</p>
+        <div className="chat-profile">
+          <div className="avatar chat-avatar">
+            {thread.title
+              .split(" ")
+              .map((part) => part[0])
+              .join("")}
           </div>
-          <p className="chat-sub">
-            {thread.is_direct ? thread.location : `${thread.members} · ${thread.location}`}
-          </p>
+          <div>
+            <div className="chat-title-row">
+              {isMobile && (
+                <button className="back-button" type="button" onClick={onBack}>
+                  ← Чаты
+                </button>
+              )}
+              <p className="chat-title">{thread.title}</p>
+            </div>
+            <div className="chat-meta">
+              {thread.is_direct && (
+                <>
+                  <span
+                    className={`presence-dot ${presenceMeta?.tone || "offline"}`}
+                    aria-hidden
+                  />
+                  <span className={`chat-presence ${presenceMeta?.tone || "offline"}`}>
+                    {presenceMeta?.label || "Не в сети"}
+                  </span>
+                  <span className="chat-divider">•</span>
+                </>
+              )}
+              <span className="chat-sub">
+                {thread.is_direct
+                  ? "Личный чат"
+                  : `${thread.members} · ${thread.location}`}
+              </span>
+            </div>
+          </div>
         </div>
         <div className="chat-actions">
+          {thread.is_direct && (
+            <>
+              <button className="call-button" type="button">
+                Позвонить
+              </button>
+              <button className="ghost icon-button chat-icon" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M4 7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2.1l3.6-2.3a1 1 0 0 1 1.5.9v8.6a1 1 0 0 1-1.5.9L16 14.9V17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span>Видео</span>
+              </button>
+            </>
+          )}
           {!thread.is_direct && (
             <button className="ghost" type="button" onClick={onAddMember}>
               Добавить участника
@@ -323,6 +275,14 @@ function ChatPanel({
           )}
           <button className="ghost" type="button" onClick={onDeleteChat}>
             Удалить чат
+          </button>
+          <button className="ghost icon-button chat-icon" type="button" aria-label="Меню">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M6 12a2 2 0 1 0 0 .01V12zm6 0a2 2 0 1 0 0 .01V12zm6 0a2 2 0 1 0 0 .01V12z"
+                fill="currentColor"
+              />
+            </svg>
           </button>
         </div>
       </header>
@@ -370,12 +330,6 @@ function ChatPanel({
                       messageRefs.current.delete(message.id);
                     }
                   }}
-                  onContextMenuCapture={(event) =>
-                    handleMessageContextMenu(event, message, isSelf)
-                  }
-                  onPointerUp={(event) =>
-                    handleMessageContextMenu(event, message, isSelf)
-                  }
                 >
                   <div className="avatar">
                     {message.author
@@ -384,6 +338,93 @@ function ChatPanel({
                       .join("")}
                   </div>
                   <div className="bubble">
+                    <div className={`message-actions-inline ${isSelf ? "self" : ""}`}>
+                      <button
+                        className="message-action-button reply"
+                        type="button"
+                        aria-label="Ответить"
+                        onClick={() =>
+                          setReplyTo({
+                            id: message.id,
+                            author: message.author,
+                            content: message.content,
+                          })
+                        }
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path
+                            d="M10 7V4L3 11l7 7v-3h6a5 5 0 0 0 5-5V9"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                      {isSelf && (
+                        <button
+                          className="message-action-button edit"
+                          type="button"
+                          aria-label="Редактировать"
+                          onClick={() => {
+                            setEditTarget({
+                              id: message.id,
+                              content: message.content,
+                            });
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path
+                              d="M3 17.25V21h3.75L18.5 9.25l-3.75-3.75L3 17.25z"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M14.75 5.5l3.75 3.75"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                      {isSelf && (
+                        <button
+                          className="message-action-button delete"
+                          type="button"
+                          aria-label="Удалить"
+                          onClick={() => onDelete?.(message.id)}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path
+                              d="M4 7h16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                            <path
+                              d="M9 7V5h6v2"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                            <path
+                              d="M7 7l1 12h8l1-12"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                     {message.reply && (
                       <button
                         className="reply-preview"
@@ -508,55 +549,6 @@ function ChatPanel({
             })
           )}
         </div>
-        {contextMenu && (
-          <div
-            className="message-actions"
-            ref={menuRef}
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-          >
-            <button
-              className="ghost"
-              type="button"
-              onClick={() => {
-                setReplyTo({
-                  id: contextMenu.message.id,
-                  author: contextMenu.message.author,
-                  content: contextMenu.message.content,
-                });
-                setContextMenu(null);
-              }}
-            >
-              Ответить
-            </button>
-            {contextMenu.isSelf && (
-              <>
-                <button
-                  className="ghost"
-                  type="button"
-                  onClick={() => {
-                    setEditTarget({
-                      id: contextMenu.message.id,
-                      content: contextMenu.message.content,
-                    });
-                    setContextMenu(null);
-                  }}
-                >
-                  Редактировать
-                </button>
-                <button
-                  className="ghost"
-                  type="button"
-                  onClick={() => {
-                    onDelete?.(contextMenu.message.id);
-                    setContextMenu(null);
-                  }}
-                >
-                  Удалить
-                </button>
-              </>
-            )}
-          </div>
-        )}
         <footer className="composer">
           <div className="composer-input">
             <form className="composer-form" onSubmit={handleSubmit}>

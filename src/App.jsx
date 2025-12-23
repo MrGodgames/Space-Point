@@ -25,6 +25,57 @@ const formatTime = (date = new Date()) =>
     minute: "2-digit",
   });
 
+const INACTIVITY_THRESHOLD_MS = 4 * 60 * 1000;
+
+const formatRelativeTime = (timestamp, now = Date.now()) => {
+  if (!timestamp) {
+    return "недавно";
+  }
+  const diffMs = now - new Date(timestamp).getTime();
+  if (!Number.isFinite(diffMs) || diffMs < 0) {
+    return "недавно";
+  }
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) {
+    return "только что";
+  }
+  if (minutes < 60) {
+    return `${minutes} мин назад`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} ч назад`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days} дн назад`;
+};
+
+const getPresenceMeta = (presence, now = Date.now()) => {
+  if (!presence) {
+    return { label: "Не в сети", tone: "offline" };
+  }
+
+  if (presence.status === "online") {
+    const lastActiveAt = presence.lastActiveAt;
+    const lastActiveTime = lastActiveAt
+      ? new Date(lastActiveAt).getTime()
+      : now;
+    if (now - lastActiveTime > INACTIVITY_THRESHOLD_MS) {
+      return { label: "Неактивен", tone: "idle" };
+    }
+    return { label: "В сети", tone: "online" };
+  }
+
+  if (presence.lastSeenAt) {
+    return {
+      label: `Был ${formatRelativeTime(presence.lastSeenAt, now)}`,
+      tone: "offline",
+    };
+  }
+
+  return { label: "Не в сети", tone: "offline" };
+};
+
 function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [activeThreadId, setActiveThreadId] = useState(null);
@@ -50,6 +101,8 @@ function App() {
   const [typingByChat, setTypingByChat] = useState({});
   const [connectionSpeedMbps, setConnectionSpeedMbps] = useState(null);
   const [isSpeedChecking, setIsSpeedChecking] = useState(false);
+  const [presenceByUser, setPresenceByUser] = useState({});
+  const [presenceNow, setPresenceNow] = useState(Date.now());
   const socketRef = useRef(null);
   const activeThreadIdRef = useRef(null);
   const userRef = useRef(null);
@@ -57,6 +110,11 @@ function App() {
   const activeThread =
     threads.find((thread) => thread.id === activeThreadId) ?? null;
   const activeTyping = activeThreadId ? typingByChat[activeThreadId] || [] : [];
+  const activePresence =
+    activeThread?.is_direct && activeThread.direct_user_id
+      ? presenceByUser[activeThread.direct_user_id]
+      : null;
+  const activePresenceMeta = getPresenceMeta(activePresence, presenceNow);
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
@@ -65,6 +123,13 @@ function App() {
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPresenceNow(Date.now());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCheckSpeed = async () => {
     if (isSpeedChecking) {
@@ -283,7 +348,35 @@ function App() {
       );
     });
 
+    socket.on("presence:update", (payload) => {
+      if (!payload?.userId) {
+        return;
+      }
+      setPresenceByUser((prev) => ({
+        ...prev,
+        [payload.userId]: payload,
+      }));
+    });
+
+    const sendPing = () => {
+      socket.emit("presence:ping");
+    };
+
+    const handleActivity = () => {
+      sendPing();
+    };
+
+    sendPing();
+    const pingInterval = setInterval(sendPing, 30000);
+    window.addEventListener("focus", handleActivity);
+    window.addEventListener("pointerdown", handleActivity);
+    window.addEventListener("keydown", handleActivity);
+
     return () => {
+      clearInterval(pingInterval);
+      window.removeEventListener("focus", handleActivity);
+      window.removeEventListener("pointerdown", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
       socket.disconnect();
       socketRef.current = null;
     };
@@ -315,6 +408,42 @@ function App() {
 
     fetchMessages();
   }, [activeThreadId, isAuth]);
+
+  useEffect(() => {
+    if (!isAuth || threads.length === 0) {
+      return;
+    }
+    const userIds = Array.from(
+      new Set(
+        threads
+          .filter((thread) => thread.is_direct && thread.direct_user_id)
+          .map((thread) => thread.direct_user_id)
+          .filter((id) => id && id !== user?.id)
+      )
+    );
+
+    if (userIds.length === 0) {
+      return;
+    }
+
+    api
+      .presence(userIds)
+      .then((data) => {
+        if (!data?.presence) {
+          return;
+        }
+        setPresenceByUser((prev) => {
+          const next = { ...prev };
+          data.presence.forEach((item) => {
+            if (item?.userId) {
+              next[item.userId] = item;
+            }
+          });
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, [threads, isAuth, user?.id]);
 
   const handleAuthSubmit = async (event) => {
     event.preventDefault();
@@ -369,6 +498,7 @@ function App() {
     setActiveThreadId(null);
     setIsAccountOpen(false);
     setTypingByChat({});
+    setPresenceByUser({});
     setLoginValue("");
     setPasswordValue("");
     setConfirmPasswordValue("");
@@ -690,6 +820,9 @@ function App() {
               <ConversationList
                 threads={threads}
                 activeId={activeThread?.id}
+                presenceByUser={presenceByUser}
+                presenceNow={presenceNow}
+                getPresenceMeta={getPresenceMeta}
                 onSelect={(id) => {
                   setActiveThreadId(id);
                   setShowChat(true);
@@ -712,6 +845,7 @@ function App() {
                 thread={activeThread}
                 isMobile
                 isLoading={isChatLoading}
+                presenceMeta={activePresenceMeta}
                 onBack={() => setShowChat(false)}
                 onSend={handleSendMessage}
                 onUpload={handleUploadFiles}
@@ -738,6 +872,9 @@ function App() {
             <ConversationList
               threads={threads}
               activeId={activeThread?.id}
+              presenceByUser={presenceByUser}
+              presenceNow={presenceNow}
+              getPresenceMeta={getPresenceMeta}
               onSelect={setActiveThreadId}
               onCreateChat={async (title) => {
                 try {
@@ -755,6 +892,7 @@ function App() {
               messages={messages}
               thread={activeThread}
               isLoading={isChatLoading}
+              presenceMeta={activePresenceMeta}
               onSend={handleSendMessage}
               onUpload={handleUploadFiles}
               onEdit={handleEditMessage}
