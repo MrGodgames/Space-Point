@@ -15,7 +15,7 @@ const SOCKET_URL =
 
 const formatAccount = (user) => ({
   name: `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`,
-  handle: `@${user.login}`,
+  handle: user.nickname ? `@${user.nickname}` : "",
   status: user.status || "Онлайн",
 });
 
@@ -507,6 +507,12 @@ function App() {
     setLastNameValue("");
   };
 
+  const handleProfileUpdate = async (payload) => {
+    const data = await api.updateProfile(payload);
+    setUser(data.user);
+    setAccount(formatAccount(data.user));
+  };
+
   const handleSendMessage = async (content, replyTo, attachments = []) => {
     if (!activeThreadId) {
       return;
@@ -528,7 +534,7 @@ function App() {
         account?.name ||
         (currentUser
           ? `${currentUser.first_name}${currentUser.last_name ? ` ${currentUser.last_name}` : ""}`
-          : "Вы"),
+          : currentUser?.nickname || "Вы"),
       role: "вы",
       user_id: currentUser?.id,
       isSelf: true,
@@ -908,13 +914,15 @@ function App() {
       </main>
       <AccountModal
         account={account}
+        user={user}
         isOpen={isAccountOpen}
         onClose={() => setIsAccountOpen(false)}
         onLogout={handleLogout}
+        onUpdateProfile={handleProfileUpdate}
       />
       <UserModal
         title="Личный чат"
-        placeholder="Логин пользователя"
+        placeholder="Никнейм пользователя"
         isOpen={isDirectOpen}
         onClose={() => setIsDirectOpen(false)}
         onSubmit={async (login) => {
@@ -926,7 +934,7 @@ function App() {
       />
       <UserModal
         title="Добавить участника"
-        placeholder="Логин пользователя"
+        placeholder="Никнейм пользователя"
         isOpen={isAddMemberOpen}
         onClose={() => setIsAddMemberOpen(false)}
         onSubmit={async (login) => {

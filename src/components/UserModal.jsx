@@ -13,7 +13,7 @@ function UserModal({ title, placeholder, isOpen, onClose, onSubmit }) {
     setError("");
     const trimmed = value.trim();
     if (!trimmed) {
-      setError("Введите логин");
+      setError("Введите никнейм");
       return;
     }
 
@@ -32,7 +32,7 @@ function UserModal({ title, placeholder, isOpen, onClose, onSubmit }) {
         <div className="modal-header">
           <div>
             <p className="modal-title">{title}</p>
-            <p className="modal-sub">Введите логин пользователя</p>
+            <p className="modal-sub">Введите никнейм пользователя</p>
           </div>
           <button
             className="icon-button"

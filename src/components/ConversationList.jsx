@@ -16,6 +16,8 @@ function ConversationList({
   const listRef = useRef(null);
   const menuRef = useRef(null);
   const [contextMenu, setContextMenu] = useState(null);
+  const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
+  const createMenuRef = useRef(null);
 
   const submitChat = async (event) => {
     event.preventDefault();
@@ -63,6 +65,27 @@ function ConversationList({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (!isCreateMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event) => {
+      if (createMenuRef.current?.contains(event.target)) {
+        return;
+      }
+      setIsCreateMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("resize", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("resize", handlePointerDown);
+    };
+  }, [isCreateMenuOpen]);
 
   const handleThreadContextMenu = (event, thread) => {
     const isRightButton = event.button === 2 || (event.buttons & 2) === 2;
@@ -129,16 +152,39 @@ function ConversationList({
       <div className="stack-actions">
         {!isCreating ? (
           <>
-            <button
-              className="ghost"
-              type="button"
-              onClick={() => setIsCreating(true)}
-            >
-              Новый чат
-            </button>
-            <button className="ghost" type="button" onClick={onCreateDirect}>
-              Личный чат
-            </button>
+            <div className="create-menu" ref={createMenuRef}>
+              <button
+                className="primary create-button"
+                type="button"
+                onClick={() => setIsCreateMenuOpen((prev) => !prev)}
+              >
+                Создать чат
+              </button>
+              {isCreateMenuOpen && (
+                <div className="create-menu-panel">
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      setIsCreateMenuOpen(false);
+                      setIsCreating(true);
+                    }}
+                  >
+                    Новый чат
+                  </button>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      setIsCreateMenuOpen(false);
+                      onCreateDirect?.();
+                    }}
+                  >
+                    Личный чат
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <form className="new-chat" onSubmit={submitChat}>

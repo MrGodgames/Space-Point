@@ -48,6 +48,98 @@ const createToken = (user) =>
     expiresIn: "7d",
   });
 
+const transliterateToLatin = (value = "") => {
+  const map = {
+    а: "a",
+    б: "b",
+    в: "v",
+    г: "g",
+    д: "d",
+    е: "e",
+    ё: "e",
+    ж: "zh",
+    з: "z",
+    и: "i",
+    й: "i",
+    к: "k",
+    л: "l",
+    м: "m",
+    н: "n",
+    о: "o",
+    п: "p",
+    р: "r",
+    с: "s",
+    т: "t",
+    у: "u",
+    ф: "f",
+    х: "h",
+    ц: "ts",
+    ч: "ch",
+    ш: "sh",
+    щ: "shch",
+    ъ: "",
+    ы: "y",
+    ь: "",
+    э: "e",
+    ю: "yu",
+    я: "ya",
+  };
+
+  return value
+    .toLowerCase()
+    .split("")
+    .map((char) => map[char] ?? char)
+    .join("");
+};
+
+const buildNicknameBase = (firstName, lastName) => {
+  const parts = [firstName, lastName].filter(Boolean);
+  const combined = parts.join(".");
+  const translit = transliterateToLatin(combined);
+  const base = translit
+    .replace(/[^a-z0-9._-]+/g, ".")
+    .replace(/\.+/g, ".")
+    .replace(/^\.|\.$/g, "");
+  return base || "user";
+};
+
+const normalizeNickname = (value = "") =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "");
+
+const isValidNickname = (value = "") =>
+  /^[a-z0-9][a-z0-9._-]*$/.test(value);
+
+const generateUniqueNickname = async (firstName, lastName) => {
+  const base = buildNicknameBase(firstName, lastName);
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const suffix = Math.floor(10000 + Math.random() * 90000);
+    const nickname = `${base}${suffix}`;
+    const exists = await pool.query(
+      "SELECT 1 FROM users WHERE nickname = $1",
+      [nickname]
+    );
+    if (exists.rowCount === 0) {
+      return nickname;
+    }
+  }
+  throw new Error("Не удалось создать никнейм");
+};
+
+const ensureNickname = async (user) => {
+  if (user.nickname) {
+    return user.nickname;
+  }
+  const nickname = await generateUniqueNickname(user.first_name, user.last_name);
+  await pool.query(
+    "UPDATE users SET nickname = $1 WHERE id = $2",
+    [nickname, user.id]
+  );
+  return nickname;
+};
+
 const onlineUsers = new Map();
 const presenceState = new Map();
 
@@ -185,7 +277,11 @@ const fetchChatForUser = async (chatId, userId) => {
     LEFT JOIN LATERAL (
         SELECT
         u2.id AS direct_user_id,
-        COALESCE(NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), ''), u2.login) AS direct_title
+        COALESCE(
+          NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), ''),
+          u2.nickname,
+          u2.login
+        ) AS direct_title
       FROM chat_members cm2
       JOIN users u2 ON u2.id = cm2.user_id
       WHERE cm2.chat_id = chats.id AND u2.id <> $2
@@ -240,14 +336,14 @@ io.on("connection", async (socket) => {
     markActive(userId, { emit: false, persist: false });
     try {
       const userResult = await pool.query(
-        `SELECT first_name, last_name, login FROM users WHERE id = $1`,
+        `SELECT first_name, last_name, login, nickname FROM users WHERE id = $1`,
         [userId]
       );
       const user = userResult.rows[0];
       const name = user
         ? user.first_name
           ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`
-          : user.login
+          : user.nickname || user.login
         : "";
 
       socket.to(`chat:${chatId}`).emit("typing", {
@@ -372,16 +468,23 @@ app.post("/api/uploads", authMiddleware, upload.array("files", 10), async (req, 
 });
 
 app.post("/api/auth/register", async (req, res) => {
-  const { email, login, password, firstName, lastName } = req.body;
+  const { email, login, password, firstName, lastName, nickname } = req.body;
 
   if (!email || !login || !password || !firstName) {
     return res.status(400).json({ error: "Заполните обязательные поля" });
   }
 
   try {
+    const rawNickname = nickname?.trim();
+    const finalNickname = rawNickname
+      ? normalizeNickname(rawNickname)
+      : await generateUniqueNickname(firstName, lastName);
+    if (rawNickname && !isValidNickname(finalNickname)) {
+      return res.status(400).json({ error: "Никнейм только на латинице" });
+    }
     const existing = await pool.query(
-      "SELECT id FROM users WHERE email = $1 OR login = $2",
-      [email, login]
+      "SELECT id FROM users WHERE email = $1 OR login = $2 OR nickname = $3",
+      [email, login, finalNickname]
     );
 
     if (existing.rowCount > 0) {
@@ -390,10 +493,10 @@ app.post("/api/auth/register", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const userResult = await pool.query(
-      `INSERT INTO users (email, login, password_hash, first_name, last_name)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, email, login, first_name, last_name, status`,
-      [email, login, passwordHash, firstName, lastName || null]
+      `INSERT INTO users (email, login, nickname, password_hash, first_name, last_name)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, email, login, nickname, first_name, last_name, status`,
+      [email, login, finalNickname, passwordHash, firstName, lastName || null]
     );
 
     const user = userResult.rows[0];
@@ -441,7 +544,7 @@ app.post("/api/auth/login", async (req, res) => {
 
   try {
     const userResult = await pool.query(
-      `SELECT id, email, login, password_hash, first_name, last_name, status
+      `SELECT id, email, login, nickname, password_hash, first_name, last_name, status
        FROM users
        WHERE login = $1`,
       [login]
@@ -458,6 +561,7 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(401).json({ error: "Неверный логин или пароль" });
     }
 
+    const nicknameValue = await ensureNickname(user);
     const token = createToken(user);
     return res.json({
       token,
@@ -465,6 +569,7 @@ app.post("/api/auth/login", async (req, res) => {
         id: user.id,
         email: user.email,
         login: user.login,
+        nickname: nicknameValue,
         first_name: user.first_name,
         last_name: user.last_name,
         status: user.status,
@@ -478,7 +583,7 @@ app.post("/api/auth/login", async (req, res) => {
 app.get("/api/me", authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, email, login, first_name, last_name, status
+      `SELECT id, email, login, nickname, first_name, last_name, status
        FROM users
        WHERE id = $1`,
       [req.user.id]
@@ -488,7 +593,68 @@ app.get("/api/me", authMiddleware, async (req, res) => {
       return res.status(404).json({ error: "Пользователь не найден" });
     }
 
-    return res.json({ user: result.rows[0] });
+    const user = result.rows[0];
+    const nicknameValue = await ensureNickname(user);
+    return res.json({
+      user: {
+        ...user,
+        nickname: nicknameValue,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+app.patch("/api/me", authMiddleware, async (req, res) => {
+  const { firstName, lastName, nickname } = req.body;
+  if (!firstName) {
+    return res.status(400).json({ error: "Имя обязательно" });
+  }
+
+  try {
+    const updates = [];
+    const values = [req.user.id];
+
+    updates.push(`first_name = $${values.length + 1}`);
+    values.push(firstName.trim());
+
+    updates.push(`last_name = $${values.length + 1}`);
+    values.push(lastName?.trim() || null);
+
+    if (nickname !== undefined) {
+      const trimmedNickname = nickname.trim();
+      let finalNickname = normalizeNickname(trimmedNickname);
+      if (!trimmedNickname) {
+        finalNickname = await generateUniqueNickname(firstName, lastName);
+      } else if (!isValidNickname(finalNickname)) {
+        return res.status(400).json({ error: "Никнейм только на латинице" });
+      } else {
+        const existing = await pool.query(
+          "SELECT id FROM users WHERE nickname = $1 AND id <> $2",
+          [finalNickname, req.user.id]
+        );
+        if (existing.rowCount > 0) {
+          return res.status(409).json({ error: "Никнейм уже занят" });
+        }
+      }
+      updates.push(`nickname = $${values.length + 1}`);
+      values.push(finalNickname);
+    }
+
+    await pool.query(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = $1`,
+      values
+    );
+
+    const updated = await pool.query(
+      `SELECT id, email, login, nickname, first_name, last_name, status
+       FROM users
+       WHERE id = $1`,
+      [req.user.id]
+    );
+
+    return res.json({ user: updated.rows[0] });
   } catch (error) {
     return res.status(500).json({ error: "Ошибка сервера" });
   }
@@ -515,7 +681,11 @@ app.get("/api/chats", authMiddleware, async (req, res) => {
       LEFT JOIN LATERAL (
         SELECT
           u2.id AS direct_user_id,
-          COALESCE(NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), ''), u2.login) AS direct_title
+          COALESCE(
+            NULLIF(TRIM(COALESCE(u2.first_name, '') || ' ' || COALESCE(u2.last_name, '')), ''),
+            u2.nickname,
+            u2.login
+          ) AS direct_title
         FROM chat_members cm2
         JOIN users u2 ON u2.id = cm2.user_id
         WHERE cm2.chat_id = chats.id AND u2.id <> $1
@@ -554,11 +724,12 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
 
     const result = await pool.query(
       `SELECT messages.id, messages.content, messages.created_at, messages.user_id, messages.reply_to, messages.edited_at,
-              users.first_name, users.last_name, users.login,
+              users.first_name, users.last_name, users.login, users.nickname,
               reply.content AS reply_content,
               reply_users.first_name AS reply_first_name,
               reply_users.last_name AS reply_last_name,
               reply_users.login AS reply_login,
+              reply_users.nickname AS reply_nickname,
               COUNT(message_reads.user_id) FILTER (WHERE message_reads.user_id <> messages.user_id) AS read_by_count,
               BOOL_OR(message_reads.user_id = $2) AS is_read
        FROM messages
@@ -567,8 +738,8 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
        LEFT JOIN users AS reply_users ON reply_users.id = reply.user_id
        LEFT JOIN message_reads ON message_reads.message_id = messages.id
        WHERE messages.chat_id = $1
-       GROUP BY messages.id, users.first_name, users.last_name, users.login,
-                reply.content, reply_users.first_name, reply_users.last_name, reply_users.login
+       GROUP BY messages.id, users.first_name, users.last_name, users.login, users.nickname,
+                reply.content, reply_users.first_name, reply_users.last_name, reply_users.login, reply_users.nickname
        ORDER BY messages.created_at ASC`,
       [chatId, req.user.id]
     );
@@ -600,7 +771,7 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
           id: message.id,
           author: message.first_name
             ? `${message.first_name}${message.last_name ? ` ${message.last_name}` : ""}`
-            : message.login,
+            : message.nickname || message.login,
           role: "",
           content: message.content,
           time: new Date(message.created_at).toLocaleTimeString("ru-RU", {
@@ -617,7 +788,7 @@ app.get("/api/chats/:id/messages", authMiddleware, async (req, res) => {
                 content: message.reply_content ?? "",
                 author: message.reply_first_name
                   ? `${message.reply_first_name}${message.reply_last_name ? ` ${message.reply_last_name}` : ""}`
-                  : message.reply_login || "Неизвестно",
+                  : message.reply_nickname || message.reply_login || "Неизвестно",
               }
             : null,
           attachments: withUrls,
@@ -661,14 +832,14 @@ app.post("/api/chats", authMiddleware, async (req, res) => {
 app.post("/api/chats/direct", authMiddleware, async (req, res) => {
   const { login } = req.body;
   if (!login) {
-    return res.status(400).json({ error: "Логин обязателен" });
+    return res.status(400).json({ error: "Никнейм обязателен" });
   }
 
   try {
     const targetResult = await pool.query(
-      `SELECT id, login, first_name, last_name
+      `SELECT id, login, nickname, first_name, last_name
        FROM users
-       WHERE login = $1`,
+       WHERE nickname = $1`,
       [login]
     );
 
@@ -696,7 +867,7 @@ app.post("/api/chats/direct", authMiddleware, async (req, res) => {
 
     const title = target.first_name
       ? `${target.first_name}${target.last_name ? ` ${target.last_name}` : ""}`
-      : target.login;
+      : target.nickname || target.login;
 
     const chatResult = await pool.query(
       `INSERT INTO chats (title, status, location, is_direct, direct_key, created_by)
@@ -741,7 +912,7 @@ app.post("/api/chats/:id/members", authMiddleware, async (req, res) => {
     }
 
     const userResult = await pool.query(
-      `SELECT id FROM users WHERE login = $1`,
+      `SELECT id FROM users WHERE nickname = $1`,
       [login]
     );
 
@@ -777,10 +948,9 @@ app.get("/api/users", authMiddleware, async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT id, login, first_name, last_name
+      `SELECT id, login, nickname, first_name, last_name
        FROM users
-       WHERE login ILIKE $1
-          OR email ILIKE $1
+       WHERE nickname ILIKE $1
           OR first_name ILIKE $1
           OR last_name ILIKE $1
        LIMIT 10`,
@@ -911,13 +1081,13 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
     );
 
     const userResult = await pool.query(
-      `SELECT first_name, last_name, login FROM users WHERE id = $1`,
+      `SELECT first_name, last_name, login, nickname FROM users WHERE id = $1`,
       [req.user.id]
     );
     const user = userResult.rows[0];
     const author = user.first_name
       ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ""}`
-      : user.login;
+      : user.nickname || user.login;
 
     const payload = {
       id: messageId,
@@ -939,7 +1109,7 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
 
     if (result.rows[0].reply_to) {
       const replyResult = await pool.query(
-        `SELECT messages.content, users.first_name, users.last_name, users.login
+        `SELECT messages.content, users.first_name, users.last_name, users.login, users.nickname
          FROM messages
          LEFT JOIN users ON users.id = messages.user_id
          WHERE messages.id = $1`,
@@ -951,7 +1121,7 @@ app.post("/api/chats/:id/messages", authMiddleware, async (req, res) => {
           content: replyRow.content,
           author: replyRow.first_name
             ? `${replyRow.first_name}${replyRow.last_name ? ` ${replyRow.last_name}` : ""}`
-            : replyRow.login,
+            : replyRow.nickname || replyRow.login,
         };
       }
     }

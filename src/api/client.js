@@ -41,6 +41,11 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   me: () => request("/api/me"),
+  updateProfile: (payload) =>
+    request("/api/me", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   chats: () => request("/api/chats"),
   createChat: (title) =>
     request("/api/chats", {

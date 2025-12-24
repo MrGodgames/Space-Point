@@ -10,10 +10,10 @@ const seed = async () => {
 
     const passwordHash = await bcrypt.hash("1", 10);
     const userResult = await client.query(
-      `INSERT INTO users (email, login, password_hash, first_name, last_name)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (email, login, nickname, password_hash, first_name, last_name)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id`,
-      ["1@example.com", "1", passwordHash, "Александр", ""]
+      ["1@example.com", "1", "space.point", passwordHash, "Александр", ""]
     );
     const userId = userResult.rows[0].id;
 
