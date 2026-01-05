@@ -4,9 +4,7 @@ import { createPortal } from "react-dom";
 function ChatPanel({
   messages,
   thread,
-  isMobile,
   presenceMeta,
-  onBack,
   onSend,
   onUpload,
   onEdit,
@@ -160,14 +158,6 @@ function ChatPanel({
     setLoadedImages({});
   }, [thread?.id]);
 
-  if (!thread) {
-    return (
-      <section className="chat">
-        <div className="empty-state">Выберите чат, чтобы начать переписку</div>
-      </section>
-    );
-  }
-
   const sendDraft = () => {
     const trimmed = draft.trim();
     if (!trimmed && attachments.length === 0) {
@@ -234,6 +224,14 @@ function ChatPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [preview]);
 
+  if (!thread) {
+    return (
+      <section className="chat">
+        <div className="empty-state">Выберите чат, чтобы начать переписку</div>
+      </section>
+    );
+  }
+
   return (
     <section className="chat">
       <header className="chat-header">
@@ -246,11 +244,6 @@ function ChatPanel({
           </div>
           <div>
             <div className="chat-title-row">
-              {isMobile && (
-                <button className="back-button" type="button" onClick={onBack}>
-                  ← Чаты
-                </button>
-              )}
               <p className="chat-title">{thread.title}</p>
             </div>
             <div className="chat-meta">

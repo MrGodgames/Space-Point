@@ -77,9 +77,7 @@ const getPresenceMeta = (presence, now = Date.now()) => {
 };
 
 function App() {
-  const [isMobile, setIsMobile] = useState(false);
   const [activeThreadId, setActiveThreadId] = useState(null);
-  const [showChat, setShowChat] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isAuth, setIsAuth] = useState(false);
   const [authMode, setAuthMode] = useState("login");
@@ -163,28 +161,6 @@ function App() {
       chatIds: data.chats.map((chat) => chat.id),
     });
   };
-
-  useEffect(() => {
-    const checkSize = () => {
-      setIsMobile(window.innerWidth < 900);
-    };
-
-    checkSize();
-    window.addEventListener("resize", checkSize);
-
-    return () => {
-      window.removeEventListener("resize", checkSize);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isMobile) {
-      setShowChat(true);
-      return;
-    }
-
-    setShowChat(false);
-  }, [isMobile]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -662,9 +638,6 @@ function App() {
       await api.deleteChat(activeThreadId);
       await loadChats();
       setMessages([]);
-      if (isMobile) {
-        setShowChat(false);
-      }
     } catch (error) {
       // ignore
     }
@@ -777,140 +750,52 @@ function App() {
   }
 
   return (
-    <div className={`app ${isMobile ? "app-mobile" : ""}`}>
+    <div className="app">
       <Backdrop />
 
-      <main className={`shell ${isMobile ? "shell-mobile" : ""}`}>
-        {isMobile ? (
-          <>
-            {!showChat && (
-              <header className="mobile-header">
-                {account && (
-                  <div className="mobile-account">
-                    <button
-                      className="account-pill"
-                      type="button"
-                      onClick={() => setIsAccountOpen(true)}
-                    >
-                      <span className="avatar">
-                        {account.name
-                          .split(" ")
-                          .map((part) => part[0])
-                          .join("")}
-                      </span>
-                      <span>
-                        <span className="account-name">{account.name}</span>
-                        <span className="account-handle">
-                          {account.handle}
-                        </span>
-                      </span>
-                    </button>
-                    <span className="account-status">{account.status}</span>
-                  </div>
-                )}
-                <div className="mobile-actions">
-                  {quickActions.map((item, index) => (
-                    <button
-                      key={item}
-                      className={`rail-button ${
-                        index === 0 ? "active" : ""
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              </header>
-            )}
-            {!showChat ? (
-              <ConversationList
-                threads={threads}
-                activeId={activeThread?.id}
-                presenceByUser={presenceByUser}
-                presenceNow={presenceNow}
-                getPresenceMeta={getPresenceMeta}
-                onSelect={(id) => {
-                  setActiveThreadId(id);
-                  setShowChat(true);
-                }}
-                onCreateChat={async (title) => {
-                  try {
-                    const result = await api.createChat(title);
-                    await loadChats(result.chat?.id);
-                    setActiveThreadId(result.chat?.id ?? activeThreadId);
-                  } catch (error) {
-                    // ignore
-                  }
-                }}
-                onCreateDirect={() => setIsDirectOpen(true)}
-                onDeleteChat={handleDeleteChat}
-              />
-            ) : (
-              <ChatPanel
-                messages={messages}
-                thread={activeThread}
-                isMobile
-                isLoading={isChatLoading}
-                presenceMeta={activePresenceMeta}
-                onBack={() => setShowChat(false)}
-                onSend={handleSendMessage}
-                onUpload={handleUploadFiles}
-                onEdit={handleEditMessage}
-                onDelete={handleDeleteMessage}
-                onAddMember={() => setIsAddMemberOpen(true)}
-                onTyping={handleTyping}
-                typingUsers={activeTyping}
-                currentUserId={user?.id}
-                onDeleteChat={handleDeleteChat}
-              />
-            )}
-          </>
-        ) : (
-          <>
-            <NavigationRail
-              quickActions={quickActions}
-              account={account}
-              connectionSpeedMbps={connectionSpeedMbps}
-              isSpeedChecking={isSpeedChecking}
-              onCheckSpeed={handleCheckSpeed}
-              onOpenSettings={() => setIsAccountOpen(true)}
-            />
-            <ConversationList
-              threads={threads}
-              activeId={activeThread?.id}
-              presenceByUser={presenceByUser}
-              presenceNow={presenceNow}
-              getPresenceMeta={getPresenceMeta}
-              onSelect={setActiveThreadId}
-              onCreateChat={async (title) => {
-                try {
-                  const result = await api.createChat(title);
-                  await loadChats(result.chat?.id);
-                  setActiveThreadId(result.chat?.id ?? activeThreadId);
-                } catch (error) {
-                  // ignore
-                }
-              }}
-              onCreateDirect={() => setIsDirectOpen(true)}
-              onDeleteChat={handleDeleteChat}
-            />
-            <ChatPanel
-              messages={messages}
-              thread={activeThread}
-              isLoading={isChatLoading}
-              presenceMeta={activePresenceMeta}
-              onSend={handleSendMessage}
-              onUpload={handleUploadFiles}
-              onEdit={handleEditMessage}
-              onDelete={handleDeleteMessage}
-              onAddMember={() => setIsAddMemberOpen(true)}
-              onTyping={handleTyping}
-              typingUsers={activeTyping}
-              currentUserId={user?.id}
-              onDeleteChat={handleDeleteChat}
-            />
-          </>
-        )}
+      <main className="shell">
+        <NavigationRail
+          quickActions={quickActions}
+          account={account}
+          connectionSpeedMbps={connectionSpeedMbps}
+          isSpeedChecking={isSpeedChecking}
+          onCheckSpeed={handleCheckSpeed}
+          onOpenSettings={() => setIsAccountOpen(true)}
+        />
+        <ConversationList
+          threads={threads}
+          activeId={activeThread?.id}
+          presenceByUser={presenceByUser}
+          presenceNow={presenceNow}
+          getPresenceMeta={getPresenceMeta}
+          onSelect={setActiveThreadId}
+          onCreateChat={async (title) => {
+            try {
+              const result = await api.createChat(title);
+              await loadChats(result.chat?.id);
+              setActiveThreadId(result.chat?.id ?? activeThreadId);
+            } catch (error) {
+              // ignore
+            }
+          }}
+          onCreateDirect={() => setIsDirectOpen(true)}
+          onDeleteChat={handleDeleteChat}
+        />
+        <ChatPanel
+          messages={messages}
+          thread={activeThread}
+          isLoading={isChatLoading}
+          presenceMeta={activePresenceMeta}
+          onSend={handleSendMessage}
+          onUpload={handleUploadFiles}
+          onEdit={handleEditMessage}
+          onDelete={handleDeleteMessage}
+          onAddMember={() => setIsAddMemberOpen(true)}
+          onTyping={handleTyping}
+          typingUsers={activeTyping}
+          currentUserId={user?.id}
+          onDeleteChat={handleDeleteChat}
+        />
       </main>
       <AccountModal
         account={account}
@@ -929,7 +814,6 @@ function App() {
           const result = await api.createDirectChat(login);
           await loadChats(result.chat?.id);
           setActiveThreadId(result.chat?.id ?? activeThreadId);
-          setShowChat(true);
         }}
       />
       <UserModal
