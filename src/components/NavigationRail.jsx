@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function NavigationRail({
   quickActions,
@@ -33,14 +33,16 @@ function NavigationRail({
   const signalPercentLabel = hasSpeed ? `${signalPercent.toFixed(1)}%` : "--%";
 
   const toggleConnectionSpeed = () => {
-    setShowConnectionSpeed((prev) => {
-      const next = !prev;
-      if (!prev) {
-        onCheckSpeed?.();
-      }
-      return next;
-    });
+    setShowConnectionSpeed((prev) => !prev);
   };
+
+  useEffect(() => {
+    if (!showConnectionSpeed) {
+      return;
+    }
+
+    onCheckSpeed?.();
+  }, [showConnectionSpeed, onCheckSpeed]);
 
   return (
     <aside className="rail">

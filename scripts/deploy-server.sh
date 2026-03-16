@@ -32,9 +32,9 @@ DEPLOY_HOST="${DEPLOY_HOST:-}"
 DEPLOY_USER="${DEPLOY_USER:-}"
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_PATH="${DEPLOY_PATH:-}"
-DEPLOY_PM2_APP="${DEPLOY_PM2_APP:-space-point}"
 DEPLOY_INSTALL_COMMAND="${DEPLOY_INSTALL_COMMAND:-npm install}"
-DEPLOY_RESTART_COMMAND="${DEPLOY_RESTART_COMMAND:-pm2 restart ${DEPLOY_PM2_APP} --update-env}"
+DEPLOY_STOP_COMMAND="${DEPLOY_STOP_COMMAND:-pkill -f '[n]ode src/index.js' || true}"
+DEPLOY_START_COMMAND="${DEPLOY_START_COMMAND:-cd $DEPLOY_PATH/server && nohup npm run dev >> server.log 2>&1 < /dev/null &}"
 
 require_var() {
   local name="$1"
@@ -54,21 +54,22 @@ require_var "DEPLOY_PATH" "$DEPLOY_PATH"
 REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
 SSH_ARGS=(-p "$DEPLOY_PORT")
 REMOTE_SERVER_DIR="$(printf '%q' "$DEPLOY_PATH/server")"
+LOCAL_SERVER_DIR="$ROOT_DIR/server/"
 RSYNC_CMD=(
   rsync -az --progress
   -e "ssh -p $DEPLOY_PORT"
   --exclude node_modules
-  --exclude .git
-  --exclude server/.env
-  --exclude .env.deploy
-  "$ROOT_DIR/"
-  "${REMOTE}:${DEPLOY_PATH}/"
+  --exclude .env
+  --exclude .DS_Store
+  "$LOCAL_SERVER_DIR"
+  "${REMOTE}:${DEPLOY_PATH}/server/"
 )
 INSTALL_CMD=(ssh "${SSH_ARGS[@]}" "$REMOTE" "cd $REMOTE_SERVER_DIR && $DEPLOY_INSTALL_COMMAND")
-RESTART_CMD=(ssh "${SSH_ARGS[@]}" "$REMOTE" "$DEPLOY_RESTART_COMMAND")
+STOP_CMD=(ssh "${SSH_ARGS[@]}" "$REMOTE" "$DEPLOY_STOP_COMMAND")
+START_CMD=(ssh -f -n "${SSH_ARGS[@]}" "$REMOTE" "$DEPLOY_START_COMMAND")
 
 echo "Deploy target: $REMOTE"
-echo "Remote path: $DEPLOY_PATH"
+echo "Remote server path: $DEPLOY_PATH/server"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "Dry run mode enabled"
@@ -78,19 +79,23 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   printf 'Install: '
   printf '%q ' "${INSTALL_CMD[@]}"
   echo
-  printf 'Restart: '
-  printf '%q ' "${RESTART_CMD[@]}"
+  printf 'Stop: '
+  printf '%q ' "${STOP_CMD[@]}"
+  echo
+  printf 'Start: '
+  printf '%q ' "${START_CMD[@]}"
   echo
   exit 0
 fi
 
-echo "1/3 Syncing project files"
+echo "1/3 Syncing server files"
 "${RSYNC_CMD[@]}"
 
 echo "2/3 Installing server dependencies"
 "${INSTALL_CMD[@]}"
 
-echo "3/3 Restarting PM2 process"
-"${RESTART_CMD[@]}"
+echo "3/3 Restarting server process"
+"${STOP_CMD[@]}"
+"${START_CMD[@]}"
 
 echo "Deploy completed"

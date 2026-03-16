@@ -37,6 +37,16 @@ if (!process.env.JWT_SECRET) {
 
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.method === "DELETE" && req.path.startsWith("/api/chats/")) {
+    console.log("[request]", {
+      method: req.method,
+      path: req.originalUrl || req.url,
+      hasAuthHeader: Boolean(req.headers.authorization),
+    });
+  }
+  next();
+});
 
 const upload = multer({
   dest: path.join(os.tmpdir(), "space-point-uploads"),
@@ -1245,16 +1255,29 @@ app.delete("/api/messages/:id", authMiddleware, async (req, res) => {
 app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
   const chatId = Number(req.params.id);
   if (!chatId) {
+    console.warn("[DELETE /api/chats/:id] invalid chat id", {
+      rawChatId: req.params.id,
+      userId: req.user?.id ?? null,
+    });
     return res.status(400).json({ error: "Некорректный чат" });
   }
 
   try {
+    console.log("[DELETE /api/chats/:id] request", {
+      chatId,
+      userId: req.user.id,
+    });
+
     const memberCheck = await pool.query(
       `SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`,
       [chatId, req.user.id]
     );
 
     if (memberCheck.rowCount === 0) {
+      console.warn("[DELETE /api/chats/:id] access denied", {
+        chatId,
+        userId: req.user.id,
+      });
       return res.status(403).json({ error: "Нет доступа к чату" });
     }
 
@@ -1267,6 +1290,12 @@ app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
       `SELECT COUNT(*)::int AS count FROM chat_members WHERE chat_id = $1`,
       [chatId]
     );
+
+    console.log("[DELETE /api/chats/:id] member removed", {
+      chatId,
+      userId: req.user.id,
+      remainingMembers: remaining.rows[0].count,
+    });
 
     if (remaining.rows[0].count === 0) {
       const attachmentsResult = await pool.query(
@@ -1294,10 +1323,25 @@ app.delete("/api/chats/:id", authMiddleware, async (req, res) => {
       }
 
       await pool.query(`DELETE FROM chats WHERE id = $1`, [chatId]);
+      console.log("[DELETE /api/chats/:id] chat deleted", {
+        chatId,
+        deletedBy: req.user.id,
+      });
+    } else {
+      console.log("[DELETE /api/chats/:id] user left chat", {
+        chatId,
+        userId: req.user.id,
+      });
     }
 
     return res.json({ success: true });
   } catch (error) {
+    console.error("[DELETE /api/chats/:id] failed", {
+      chatId,
+      userId: req.user?.id ?? null,
+      message: error?.message,
+      stack: error?.stack,
+    });
     return res.status(500).json({ error: "Ошибка сервера" });
   }
 });

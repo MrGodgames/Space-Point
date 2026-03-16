@@ -310,10 +310,10 @@ function ChatPanel({
                   type="button"
                   onClick={() => {
                     setIsHeaderMenuOpen(false);
-                    onDeleteChat?.();
+                    onDeleteChat?.(thread?.id);
                   }}
                 >
-                  Удалить чат
+                  {thread?.is_direct ? "Удалить чат" : "Покинуть чат"}
                 </button>
               </div>
             )}

@@ -104,6 +104,7 @@ function App() {
   const socketRef = useRef(null);
   const activeThreadIdRef = useRef(null);
   const userRef = useRef(null);
+  const bootstrapStartedRef = useRef(false);
 
   const activeThread =
     threads.find((thread) => thread.id === activeThreadId) ?? null;
@@ -151,11 +152,21 @@ function App() {
     const data = await api.chats();
     setThreads(data.chats);
 
-    if (data.chats.length > 0) {
-      setActiveThreadId((prev) => prev ?? nextActiveId ?? data.chats[0].id);
-    } else {
-      setActiveThreadId(null);
-    }
+    setActiveThreadId((prev) => {
+      if (data.chats.length === 0) {
+        return null;
+      }
+
+      if (nextActiveId && data.chats.some((chat) => chat.id === nextActiveId)) {
+        return nextActiveId;
+      }
+
+      if (prev && data.chats.some((chat) => chat.id === prev)) {
+        return prev;
+      }
+
+      return data.chats[0].id;
+    });
 
     socketRef.current?.emit("join_chats", {
       chatIds: data.chats.map((chat) => chat.id),
@@ -163,6 +174,12 @@ function App() {
   };
 
   useEffect(() => {
+    if (bootstrapStartedRef.current) {
+      return;
+    }
+
+    bootstrapStartedRef.current = true;
+
     const bootstrap = async () => {
       const token = localStorage.getItem("token");
       if (!token) {
@@ -625,21 +642,46 @@ function App() {
     }
   };
 
-  const handleDeleteChat = async () => {
-    if (!activeThreadId) {
+  const handleDeleteChat = async (chatId) => {
+    const targetChatId = chatId ?? activeThreadId;
+    const targetChat =
+      threads.find((thread) => thread.id === targetChatId) ?? activeThread;
+
+    if (!targetChatId) {
       return;
     }
 
-    if (!window.confirm("Удалить чат?")) {
+    if (targetChat?.is_direct && !window.confirm("Удалить чат?")) {
       return;
     }
 
     try {
-      await api.deleteChat(activeThreadId);
-      await loadChats();
-      setMessages([]);
+      console.info("[chat:leave] request", {
+        targetChatId,
+        activeThreadId,
+        isDirect: targetChat?.is_direct ?? null,
+        title: targetChat?.title ?? null,
+      });
+      await api.deleteChat(targetChatId);
+      console.info("[chat:leave] success", {
+        targetChatId,
+        activeThreadId,
+      });
+      await loadChats(targetChatId === activeThreadId ? null : activeThreadId);
+
+      if (targetChatId === activeThreadId) {
+        setMessages([]);
+      }
     } catch (error) {
-      // ignore
+      console.error("[chat:leave] failed", {
+        targetChatId,
+        activeThreadId,
+        status: error?.status,
+        path: error?.path,
+        payload: error?.payload,
+        message: error?.message,
+      });
+      window.alert(error.message || "Не удалось удалить чат");
     }
   };
 

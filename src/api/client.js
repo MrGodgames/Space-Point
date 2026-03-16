@@ -22,8 +22,12 @@ const request = async (path, options = {}) => {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const error = data?.error || "Ошибка запроса";
-    throw new Error(error);
+    const message = data?.error || "Ошибка запроса";
+    const error = new Error(message);
+    error.status = response.status;
+    error.path = path;
+    error.payload = data;
+    throw error;
   }
 
   return data;

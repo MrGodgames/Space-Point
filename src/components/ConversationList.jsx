@@ -286,7 +286,7 @@ function ConversationList({
                 setContextMenu(null);
               }}
             >
-              Удалить чат
+              {contextMenu.thread.is_direct ? "Удалить чат" : "Покинуть чат"}
             </button>
           </div>
         )}
