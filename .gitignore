@@ -14,6 +14,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.deploy.example
 *.pem
 *.key
 релиз_на_сервер.md

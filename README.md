@@ -1,7 +1,17 @@
-# Tauri + React
+# Space-Point
 
-This template should help get you started developing with Tauri and React in Vite.
+## Деплой сервера
 
-## Recommended IDE Setup
+Текущий релиз на сервер теперь можно запускать одной командой:
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+```bash
+npm run deploy:server
+```
+
+Скрипт повторяет существующий процесс:
+
+1. Синхронизирует проект на сервер через `rsync`
+2. Выполняет `npm install` в `/server`
+3. Перезапускает приложение через `pm2 restart ... --update-env`
+
+Перед первым запуском создайте локальный файл `.env.deploy` на основе `.env.deploy.example`.
