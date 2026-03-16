@@ -673,6 +673,26 @@ function ChatPanel({
             })
           )}
         </div>
+        
+        <button
+          className={`scroll-to-bottom ${!isAtBottom ? "visible" : ""}`}
+          type="button"
+          aria-label="Вниз"
+          onClick={() => {
+            const container = getScrollContainer();
+            if (container) {
+              container.scrollTo({
+                top: container.scrollHeight,
+                behavior: "smooth",
+              });
+            }
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z" />
+          </svg>
+        </button>
+
         <footer className="composer" ref={composerRef}>
           <div className="composer-input">
             <form className="composer-form" onSubmit={handleSubmit}>

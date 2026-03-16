@@ -80,49 +80,38 @@ function IOSChatPanel({
 
   useEffect(() => {
     const screen = screenRef.current;
-    if (!screen) {
-      return undefined;
-    }
+    if (!screen) return;
 
-    let rafId = 0;
-    const syncKeyboardInset = () => {
-      const viewport = window.visualViewport;
-      const viewportBottom = viewport
-        ? Math.round(viewport.height + viewport.offsetTop)
-        : window.innerHeight;
-      const keyboardHeight = Math.max(0, window.innerHeight - viewportBottom);
-      const nextInset = keyboardHeight > 40 ? keyboardHeight : 0;
-      screen.style.setProperty("--ios-keyboard-height", `${nextInset}px`);
-    };
-
-    const scheduleSyncKeyboardInset = () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
+    const enforceScrollBounds = () => {
+      // FORCE Safari to abandon any attempts at shifting the root document to keep inputs in view!
+      // This protects the absolute header from flying off the physical display.
+      if (window.scrollY !== 0 || document.body.scrollTop !== 0) {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
       }
-      rafId = requestAnimationFrame(() => {
-        syncKeyboardInset();
-        rafId = 0;
-      });
     };
 
-    window.addEventListener("orientationchange", scheduleSyncKeyboardInset);
-    window.visualViewport?.addEventListener("resize", scheduleSyncKeyboardInset);
-    window.visualViewport?.addEventListener("scroll", scheduleSyncKeyboardInset);
-    syncKeyboardInset();
+    const syncViewport = () => {
+      const viewport = window.visualViewport;
+      if (!viewport) return;
+      enforceScrollBounds();
+      // Track EXACT physical viewport height remaining above the keyboard.
+      screen.style.setProperty("--device-height", `${viewport.height}px`);
+    };
+
+    window.visualViewport?.addEventListener("resize", syncViewport);
+    window.visualViewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("scroll", enforceScrollBounds, { passive: false });
+    
+    syncViewport();
 
     return () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      window.removeEventListener("orientationchange", scheduleSyncKeyboardInset);
-      window.visualViewport?.removeEventListener("resize", scheduleSyncKeyboardInset);
-      window.visualViewport?.removeEventListener("scroll", scheduleSyncKeyboardInset);
-      screen.style.removeProperty("--ios-keyboard-height");
+      window.visualViewport?.removeEventListener("resize", syncViewport);
+      window.visualViewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("scroll", enforceScrollBounds);
+      screen.style.removeProperty("--device-height");
     };
   }, [thread?.id]);
-
-
-
   const messageById = useMemo(() => {
     const next = new Map();
     messages.forEach((message) => {
@@ -657,6 +646,25 @@ function IOSChatPanel({
           })
         )}
       </div>
+
+      <button
+        className={`scroll-to-bottom ios-chat-scroll-to-bottom ${!isAtBottom ? "visible" : ""}`}
+        type="button"
+        aria-label="Вниз"
+        onClick={() => {
+          const container = scrollRef.current;
+          if (container) {
+            container.scrollTo({
+              top: container.scrollHeight,
+              behavior: "smooth",
+            });
+          }
+        }}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z" />
+        </svg>
+      </button>
 
       <footer className="ios-chat-composer-shell">
         {(replyTo || editTarget) && (

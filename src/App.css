@@ -800,6 +800,47 @@ body,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex: 0 0 auto;
+}
+
+.scroll-to-bottom {
+  position: absolute;
+  right: 20px;
+  bottom: 120px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(10, 18, 34, 0.85);
+  border: 1px solid rgba(107, 230, 255, 0.2);
+  color: #6be6ff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  z-index: 10;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease, background 0.2s ease;
+}
+
+.scroll-to-bottom.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.scroll-to-bottom:hover {
+  background: rgba(10, 18, 34, 0.95);
+  border-color: rgba(107, 230, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.scroll-to-bottom svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
 }
 
 .chat-header-main {

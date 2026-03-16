@@ -1,11 +1,10 @@
 .ios-chat-screen {
-  --ios-keyboard-height: 0px;
-  position: relative;
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
+  height: var(--device-height, 100vh); /* Tracked synchronously by JS */
   min-height: 0;
-  height: 100%;
-  padding-bottom: var(--ios-keyboard-height);
   background:
     radial-gradient(circle at top right, rgba(75, 185, 255, 0.14), transparent 30%),
     radial-gradient(circle at bottom left, rgba(111, 124, 255, 0.12), transparent 34%),
@@ -586,4 +585,20 @@
   .ios-chat-bubble {
     max-width: 88%;
   }
+}
+
+.ios-chat-scroll-to-bottom {
+  right: 14px;
+  bottom: calc(90px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ecf2ff;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.ios-chat-scroll-to-bottom:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(0) scale(1.05);
 }
