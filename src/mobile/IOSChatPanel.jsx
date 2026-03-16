@@ -47,22 +47,7 @@ function IOSChatPanel({
   const prevMessageCount = useRef(messages.length);
   const prevThreadId = useRef(thread?.id);
   const scrollTopRef = useRef(0);
-  const viewportRepairTimers = useRef([]);
-
-  const scheduleViewportRepair = () => {
-    if (typeof window === "undefined" || !window.__TAURI_INTERNALS__) {
-      return;
-    }
-
-    viewportRepairTimers.current.forEach((timerId) => clearTimeout(timerId));
-    viewportRepairTimers.current = [0, 120, 260, 420].map((delay) =>
-      window.setTimeout(() => {
-        invoke("ios_refresh_webviews").catch(() => {
-          // ignore desktop/web runs
-        });
-      }, delay)
-    );
-  };
+  const bottomDeltaRef = useRef(0);
 
   useEffect(() => {
     if (!isHeaderMenuOpen) {
@@ -90,7 +75,6 @@ function IOSChatPanel({
       if (typingTimeout.current) {
         clearTimeout(typingTimeout.current);
       }
-      viewportRepairTimers.current.forEach((timerId) => clearTimeout(timerId));
     };
   }, []);
 
@@ -107,7 +91,7 @@ function IOSChatPanel({
         ? Math.round(viewport.height + viewport.offsetTop)
         : window.innerHeight;
       const keyboardHeight = Math.max(0, window.innerHeight - viewportBottom);
-      const nextInset = keyboardHeight > 120 ? keyboardHeight : 0;
+      const nextInset = keyboardHeight > 40 ? keyboardHeight : 0;
       screen.style.setProperty("--ios-keyboard-height", `${nextInset}px`);
     };
 
@@ -137,38 +121,7 @@ function IOSChatPanel({
     };
   }, [thread?.id]);
 
-  useEffect(() => {
-    const handleViewportChange = () => {
-      const viewport = window.visualViewport;
-      const viewportHeight = viewport
-        ? Math.round(viewport.height + viewport.offsetTop)
-        : window.innerHeight;
-      const keyboardDelta = Math.max(0, window.innerHeight - viewportHeight);
 
-      if (keyboardDelta < 120) {
-        scheduleViewportRepair();
-      }
-    };
-
-    const handleFocusOut = (event) => {
-      if (event.target === inputRef.current) {
-        scheduleViewportRepair();
-      }
-    };
-
-    window.addEventListener("orientationchange", handleViewportChange);
-    window.addEventListener("focusout", handleFocusOut, true);
-    window.visualViewport?.addEventListener("resize", handleViewportChange);
-    window.visualViewport?.addEventListener("scroll", handleViewportChange);
-    scheduleViewportRepair();
-
-    return () => {
-      window.removeEventListener("orientationchange", handleViewportChange);
-      window.removeEventListener("focusout", handleFocusOut, true);
-      window.visualViewport?.removeEventListener("resize", handleViewportChange);
-      window.visualViewport?.removeEventListener("scroll", handleViewportChange);
-    };
-  }, [thread?.id]);
 
   const messageById = useMemo(() => {
     const next = new Map();
@@ -199,6 +152,7 @@ function IOSChatPanel({
       }
       const distance =
         container.scrollHeight - container.scrollTop - container.clientHeight;
+      bottomDeltaRef.current = distance;
       setIsAtBottom(distance <= threshold);
       scrollTopRef.current = container.scrollTop;
     };
@@ -210,6 +164,21 @@ function IOSChatPanel({
       container.removeEventListener("scroll", updatePosition);
     };
   }, [thread?.id]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      // If we were reasonably close to the bottom, force scroll to new max
+      if (bottomDeltaRef.current <= 120) {
+        container.scrollTop = container.scrollHeight - container.clientHeight;
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -436,7 +405,15 @@ function IOSChatPanel({
         </div>
       </header>
 
-      <div className="ios-chat-scroll" ref={scrollRef}>
+      <div
+        className="ios-chat-scroll"
+        ref={scrollRef}
+        onTouchStart={() => {
+          if (document.activeElement === inputRef.current) {
+            inputRef.current?.blur();
+          }
+        }}
+      >
         {isLoading ? (
           <div className="ios-chat-empty">
             <p>Загрузка сообщений...</p>
@@ -786,8 +763,6 @@ function IOSChatPanel({
                   ? `Ответ: ${replyTo.author}`
                   : `Передать: ${thread.title}`
             }
-            onFocus={scheduleViewportRepair}
-            onBlur={scheduleViewportRepair}
           />
           <button
             className="ios-chat-send"

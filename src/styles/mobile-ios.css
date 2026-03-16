@@ -86,6 +86,7 @@
   font-weight: 600;
   box-shadow: 0 10px 24px rgba(73, 101, 150, 0.08);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .ios-profile-button,
@@ -102,6 +103,7 @@
   font-size: 14px;
   font-weight: 700;
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .ios-compose-button svg {
@@ -431,6 +433,7 @@
   border-radius: 18px;
   background: rgba(248, 248, 248, 0.94);
   backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
 }
 
@@ -522,6 +525,7 @@
   flex-direction: row;
   background: rgba(248, 248, 250, 0.92);
   backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid rgba(60, 60, 67, 0.12);
 }
 
@@ -661,6 +665,7 @@
   padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
   background: rgba(248, 248, 250, 0.94);
   backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid rgba(60, 60, 67, 0.12);
 }
 
@@ -999,6 +1004,7 @@
   background: transparent;
   border-top: none;
   backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: none;
   transform: none;
   z-index: 3;
@@ -1107,6 +1113,7 @@
   background: transparent;
   border-top: none;
   backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: none;
 }
 
