@@ -15,10 +15,16 @@ function ChatPanel({
   typingUsers = [],
   currentUserId,
   onDeleteChat,
+  isMobile = false,
+  isIos = false,
+  onBack,
 }) {
+  const chatRootRef = useRef(null);
   const [draft, setDraft] = useState("");
   const typingTimeout = useRef(null);
   const chatBodyRef = useRef(null);
+  const messagesRef = useRef(null);
+  const composerRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [replyTo, setReplyTo] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
@@ -35,6 +41,7 @@ function ChatPanel({
   const prevThreadId = useRef(thread?.id);
   const scrollTopRef = useRef(0);
   const headerMenuRef = useRef(null);
+  const getScrollContainer = () => messagesRef.current || chatBodyRef.current;
 
   useEffect(() => {
     if (!isHeaderMenuOpen) {
@@ -66,13 +73,23 @@ function ChatPanel({
   }, []);
 
   useEffect(() => {
-    const container = chatBodyRef.current;
+    const container = getScrollContainer();
     if (!container) {
       return;
     }
 
     const threshold = 120;
     const updatePosition = () => {
+      // Lock the chat to vertical scrolling and clamp to real content bounds.
+      if (container.scrollLeft !== 0) {
+        container.scrollLeft = 0;
+      }
+      const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      if (container.scrollTop < 0) {
+        container.scrollTop = 0;
+      } else if (container.scrollTop > maxTop) {
+        container.scrollTop = maxTop;
+      }
       const distance =
         container.scrollHeight - container.scrollTop - container.clientHeight;
       setIsAtBottom(distance <= threshold);
@@ -98,7 +115,7 @@ function ChatPanel({
   }, [messages]);
 
   useEffect(() => {
-    const container = chatBodyRef.current;
+    const container = getScrollContainer();
     if (!container) {
       return;
     }
@@ -122,7 +139,7 @@ function ChatPanel({
   }, [messages, isLoading, thread?.id, isAtBottom]);
 
   useEffect(() => {
-    const container = chatBodyRef.current;
+    const container = getScrollContainer();
     if (!container) {
       return;
     }
@@ -157,6 +174,36 @@ function ChatPanel({
     setIsPreviewLoading(false);
     setLoadedImages({});
   }, [thread?.id]);
+
+  useEffect(() => {
+    if (!isIos) {
+      return;
+    }
+    const root = chatRootRef.current;
+    const composer = composerRef.current;
+    if (!root || !composer) {
+      return;
+    }
+
+    const applyComposerHeight = () => {
+      root.style.setProperty("--ios-composer-height", `${composer.offsetHeight}px`);
+    };
+
+    applyComposerHeight();
+    window.addEventListener("resize", applyComposerHeight);
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(applyComposerHeight);
+      resizeObserver.observe(composer);
+    }
+
+    return () => {
+      window.removeEventListener("resize", applyComposerHeight);
+      resizeObserver?.disconnect();
+      root.style.removeProperty("--ios-composer-height");
+    };
+  }, [isIos]);
 
   const sendDraft = () => {
     const trimmed = draft.trim();
@@ -226,49 +273,80 @@ function ChatPanel({
 
   if (!thread) {
     return (
-      <section className="chat">
+      <section
+        ref={chatRootRef}
+        className={`chat ${isMobile ? "chat-mobile" : ""} ${isIos ? "chat-ios" : ""}`}
+      >
         <div className="empty-state">Выберите чат, чтобы начать переписку</div>
       </section>
     );
   }
 
   return (
-    <section className="chat">
+    <section
+      ref={chatRootRef}
+      className={`chat ${isMobile ? "chat-mobile" : ""} ${isIos ? "chat-ios" : ""}`}
+    >
       <header className="chat-header">
-        <div className="chat-profile">
-          <div className="avatar chat-avatar">
-            {thread.title
-              .split(" ")
-              .map((part) => part[0])
-              .join("")}
-          </div>
-          <div>
-            <div className="chat-title-row">
-              <p className="chat-title">{thread.title}</p>
+        <div className="chat-header-main">
+          {isMobile && (
+            <button
+              className="ghost icon-button mobile-back"
+              type="button"
+              aria-label="Назад к списку чатов"
+              onClick={onBack}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path
+                  d="M15 6l-6 6 6 6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
+          <div className="chat-profile">
+            <div className="avatar chat-avatar">
+              {thread.title
+                .split(" ")
+                .map((part) => part[0])
+                .join("")}
             </div>
-            <div className="chat-meta">
-              {thread.is_direct && (
-                <>
-                  <span
-                    className={`presence-dot ${presenceMeta?.tone || "offline"}`}
-                    aria-hidden
-                  />
-                  <span className={`chat-presence ${presenceMeta?.tone || "offline"}`}>
-                    {presenceMeta?.label || "Не в сети"}
-                  </span>
-                  <span className="chat-divider">•</span>
-                </>
-              )}
-              <span className="chat-sub">
-                {thread.is_direct
-                  ? "Личный чат"
-                  : `${thread.members} · ${thread.location}`}
-              </span>
+            <div>
+              <div className="chat-title-row">
+                <p className="chat-title">{thread.title}</p>
+              </div>
+              <div className="chat-meta">
+                {thread.is_direct && (
+                  <>
+                    <span
+                      className={`presence-dot ${presenceMeta?.tone || "offline"}`}
+                      aria-hidden
+                    />
+                    <span
+                      className={`chat-presence ${
+                        presenceMeta?.tone || "offline"
+                      }`}
+                    >
+                      {presenceMeta?.label || "Не в сети"}
+                    </span>
+                    <span className="chat-divider">•</span>
+                  </>
+                )}
+                <span className="chat-sub">
+                  {thread.is_direct
+                    ? "Личный чат"
+                    : `${thread.members} · ${thread.location}`}
+                </span>
+              </div>
             </div>
           </div>
         </div>
         <div className="chat-actions">
-          {thread.is_direct && (
+          {!isIos && thread.is_direct && (
             <>
               <button className="call-button" type="button">
                 Позвонить
@@ -284,7 +362,7 @@ function ChatPanel({
               </button>
             </>
           )}
-          {!thread.is_direct && (
+          {!isIos && !thread.is_direct && (
             <button className="ghost" type="button" onClick={onAddMember}>
               Добавить участника
             </button>
@@ -305,6 +383,18 @@ function ChatPanel({
             </button>
             {isHeaderMenuOpen && (
               <div className="header-menu-panel">
+                {!thread?.is_direct && (
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      setIsHeaderMenuOpen(false);
+                      onAddMember?.();
+                    }}
+                  >
+                    Добавить участника
+                  </button>
+                )}
                 <button
                   className="ghost danger"
                   type="button"
@@ -328,7 +418,7 @@ function ChatPanel({
       </div>
 
       <div className="chat-body" ref={chatBodyRef}>
-        <div className="chat-messages">
+        <div className="chat-messages" ref={messagesRef}>
           {isLoading ? (
             <div className="empty-state">Загрузка сообщений...</div>
           ) : messages.length === 0 ? (
@@ -471,7 +561,7 @@ function ChatPanel({
                             message.reply_to
                           );
                           if (target) {
-                            const container = chatBodyRef.current;
+                            const container = getScrollContainer();
                             if (!container) {
                               return;
                             }
@@ -583,7 +673,7 @@ function ChatPanel({
             })
           )}
         </div>
-        <footer className="composer">
+        <footer className="composer" ref={composerRef}>
           <div className="composer-input">
             <form className="composer-form" onSubmit={handleSubmit}>
               <button
@@ -608,6 +698,7 @@ function ChatPanel({
                 ref={fileInputRef}
                 className="file-input"
                 type="file"
+                tabIndex={-1}
                 multiple
                 onChange={handleFilesSelected}
                 accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z"
@@ -615,6 +706,10 @@ function ChatPanel({
               <input
                 className="composer-field"
                 type="text"
+                autoComplete="off"
+                autoCorrect="on"
+                autoCapitalize="sentences"
+                enterKeyHint="send"
                 value={draft}
                 onChange={(event) => {
                   setDraft(event.target.value);

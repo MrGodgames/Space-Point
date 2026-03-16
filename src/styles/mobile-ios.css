@@ -1,0 +1,1115 @@
+.app.app-ios {
+  position: relative;
+  width: 100%;
+  min-height: 100dvh;
+  height: 100dvh;
+  padding: 0;
+  margin: 0;
+  background:
+    linear-gradient(180deg, #dce8ff 0, #eef3ff 132px, #f2f2f7 132px, #f2f2f7 100%);
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+}
+
+.app.app-ios .shell.shell-ios {
+  display: block;
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.ios-home {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ios-nav {
+  padding: calc(env(safe-area-inset-top) + 10px) 18px 10px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ios-nav-caption {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(17, 24, 39, 0.52);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ios-nav-title {
+  margin: 4px 0 0;
+  font-size: 34px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: #0f172a;
+}
+
+.ios-nav-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.56);
+}
+
+.ios-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ios-signal-pill,
+.ios-profile-button,
+.ios-compose-button,
+.ios-portal-chip,
+.ios-thread-menu,
+.ios-thread-main,
+.ios-sheet-action,
+.ios-sheet-cancel {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ios-signal-pill {
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: rgba(15, 23, 42, 0.78);
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(73, 101, 150, 0.08);
+  backdrop-filter: blur(20px);
+}
+
+.ios-profile-button,
+.ios-compose-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 24px rgba(73, 101, 150, 0.09);
+  color: #0f172a;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  backdrop-filter: blur(20px);
+}
+
+.ios-compose-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ios-toolbar {
+  padding: 0 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.ios-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border-radius: 14px;
+  background: rgba(118, 118, 128, 0.12);
+  padding: 12px 14px;
+}
+
+.ios-search svg {
+  width: 18px;
+  height: 18px;
+  color: rgba(60, 60, 67, 0.58);
+  flex-shrink: 0;
+}
+
+.ios-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 17px;
+  color: #111827;
+  width: 100%;
+  min-width: 0;
+}
+
+.ios-search input::placeholder {
+  color: rgba(60, 60, 67, 0.58);
+}
+
+.ios-portals {
+  padding: 12px 16px 14px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ios-portals::-webkit-scrollbar {
+  display: none;
+}
+
+.ios-portal-chip {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  color: rgba(15, 23, 42, 0.66);
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05);
+}
+
+.ios-portal-chip.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow:
+    0 8px 22px rgba(59, 82, 129, 0.08),
+    inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.ios-inbox {
+  flex: 1;
+  min-height: 0;
+  margin: 0 10px 10px;
+  border-radius: 28px 28px 0 0;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 22px 42px rgba(109, 124, 155, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ios-section-header {
+  padding: 18px 18px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.08);
+}
+
+.ios-section-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #111827;
+}
+
+.ios-section-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: rgba(60, 60, 67, 0.62);
+}
+
+.ios-section-badge {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ios-thread-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 calc(12px + env(safe-area-inset-bottom));
+}
+
+.ios-thread-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.ios-thread-card+.ios-thread-card {
+  margin-top: 2px;
+}
+
+.ios-thread-main {
+  border: none;
+  background: transparent;
+  padding: 14px 6px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  text-align: left;
+}
+
+.ios-thread-card:not(:last-child) .ios-thread-main,
+.ios-thread-card:not(:last-child) .ios-thread-side {
+  border-bottom: 1px solid rgba(60, 60, 67, 0.08);
+}
+
+.ios-thread-avatar {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #e5ecff, #d7def8);
+  color: #304674;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ios-presence-dot {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+}
+
+.ios-presence-dot.online {
+  background: #34c759;
+}
+
+.ios-presence-dot.idle {
+  background: #ff9f0a;
+}
+
+.ios-presence-dot.offline {
+  background: #8e8e93;
+}
+
+.ios-thread-copy {
+  min-width: 0;
+}
+
+.ios-thread-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ios-thread-title,
+.ios-thread-status,
+.ios-thread-preview,
+.ios-thread-time {
+  margin: 0;
+}
+
+.ios-thread-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ios-thread-time {
+  font-size: 13px;
+  color: rgba(60, 60, 67, 0.5);
+  flex-shrink: 0;
+}
+
+.ios-thread-status {
+  margin-top: 2px;
+  font-size: 13px;
+  color: rgba(60, 60, 67, 0.64);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ios-thread-preview {
+  margin-top: 4px;
+  font-size: 14px;
+  color: rgba(60, 60, 67, 0.74);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ios-thread-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+}
+
+.ios-thread-unread {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #007aff;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ios-thread-menu {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(118, 118, 128, 0.12);
+  color: rgba(60, 60, 67, 0.72);
+  display: grid;
+  place-items: center;
+}
+
+.ios-thread-menu svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ios-thread-card.active {
+  background: rgba(0, 122, 255, 0.05);
+}
+
+.ios-empty-state {
+  margin: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(118, 118, 128, 0.08);
+  text-align: center;
+}
+
+.ios-empty-state p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ios-empty-state span {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: rgba(60, 60, 67, 0.62);
+}
+
+.ios-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.18);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px 12px calc(12px + env(safe-area-inset-bottom));
+  z-index: 300;
+}
+
+.ios-sheet {
+  width: min(520px, 100%);
+}
+
+.ios-sheet-card,
+.ios-sheet-cancel {
+  border: none;
+  border-radius: 18px;
+  background: rgba(248, 248, 248, 0.94);
+  backdrop-filter: blur(30px);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+}
+
+.ios-sheet-card {
+  overflow: hidden;
+}
+
+.ios-sheet-title {
+  margin: 0;
+  padding: 14px 18px 8px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(60, 60, 67, 0.62);
+}
+
+.ios-sheet-action {
+  width: 100%;
+  border: none;
+  border-top: 1px solid rgba(60, 60, 67, 0.12);
+  background: transparent;
+  padding: 16px 18px;
+  font-size: 17px;
+  color: #007aff;
+}
+
+.ios-sheet-action.destructive {
+  color: #ff3b30;
+}
+
+.ios-sheet-action.primary {
+  font-weight: 700;
+}
+
+.ios-sheet-action:disabled {
+  color: rgba(60, 60, 67, 0.3);
+}
+
+.ios-sheet-cancel {
+  width: 100%;
+  margin-top: 10px;
+  padding: 16px 18px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #007aff;
+}
+
+.ios-sheet-form .ios-sheet-card {
+  padding: 12px;
+}
+
+.ios-sheet-form .ios-sheet-title {
+  padding: 6px 8px 12px;
+}
+
+.ios-sheet-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  border-radius: 14px;
+  background: rgba(118, 118, 128, 0.12);
+  padding: 14px 16px;
+  font-size: 17px;
+  color: #111827;
+}
+
+.ios-sheet-form .ios-sheet-action {
+  margin-top: 10px;
+  border-top: none;
+  border-radius: 14px;
+  background: #007aff;
+  color: white;
+  font-weight: 700;
+}
+
+.chat.chat-ios {
+  background: #f2f2f7;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  gap: 0;
+}
+
+.chat-ios .chat-header {
+  position: relative;
+  z-index: 2;
+  padding: calc(env(safe-area-inset-top) + 8px) 14px 10px;
+  align-items: center;
+  flex-direction: row;
+  background: rgba(248, 248, 250, 0.92);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(60, 60, 67, 0.12);
+}
+
+.chat-ios .chat-header-main {
+  gap: 8px;
+}
+
+.chat-ios .mobile-back {
+  width: auto;
+  height: auto;
+  padding: 6px 4px 6px 0;
+  border: none;
+  background: transparent;
+  color: #007aff;
+  box-shadow: none;
+}
+
+.chat-ios .chat-profile {
+  gap: 10px;
+}
+
+.chat-ios .chat-avatar,
+.chat-ios .avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: #dde6fb;
+  color: #304674;
+}
+
+.chat-ios .chat-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.chat-ios .chat-meta {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.chat-ios .chat-actions {
+  width: auto;
+  gap: 6px;
+}
+
+.chat-ios .chat-pills,
+.chat-ios .call-button,
+.chat-ios .chat-icon span,
+.chat-ios .composer-mic {
+  display: none;
+}
+
+.chat-ios .chat-icon {
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(118, 118, 128, 0.12);
+  border: none;
+  color: #007aff;
+}
+
+.chat-ios .chat-body {
+  background:
+    linear-gradient(180deg, rgba(228, 235, 248, 0.7), rgba(242, 242, 247, 0.92) 180px),
+    #f2f2f7;
+}
+
+.chat-ios .chat-messages {
+  padding: 16px 12px 22px;
+  gap: 10px;
+}
+
+.chat-ios .message,
+.chat-ios .message.self {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.chat-ios .message .avatar {
+  display: none;
+}
+
+.chat-ios .bubble {
+  max-width: min(80%, 420px);
+  border: none;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.chat-ios .message.self .bubble {
+  background: #007aff;
+  justify-self: end;
+}
+
+.chat-ios .message.self .bubble p,
+.chat-ios .message.self .bubble-head,
+.chat-ios .message.self .bubble-time,
+.chat-ios .message.self .read-status {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.chat-ios .bubble-head,
+.chat-ios .bubble-time {
+  color: rgba(60, 60, 67, 0.54);
+}
+
+.chat-ios .reply-preview,
+.chat-ios .attachment-link,
+.chat-ios .attachment-image,
+.chat-ios .composer-context,
+.chat-ios .attachment-chip {
+  background: rgba(118, 118, 128, 0.08);
+  border: none;
+}
+
+.chat-ios .message-actions-inline,
+.chat-ios .message-actions-inline.self {
+  position: static;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  margin-bottom: 8px;
+}
+
+.chat-ios .message-action-button {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(118, 118, 128, 0.12);
+  color: rgba(60, 60, 67, 0.74);
+  box-shadow: none;
+}
+
+.chat-ios .composer {
+  bottom: 0;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  background: rgba(248, 248, 250, 0.94);
+  backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(60, 60, 67, 0.12);
+}
+
+.chat-ios .composer-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 24px;
+  background: white;
+  border: 1px solid rgba(60, 60, 67, 0.12);
+  box-shadow: none;
+}
+
+.chat-ios .composer-form {
+  gap: 8px;
+}
+
+.chat-ios .composer-field {
+  border: none;
+  background: transparent;
+  padding: 12px 10px;
+  font-size: 17px;
+  color: #111827;
+}
+
+.chat-ios .composer-field::placeholder {
+  color: rgba(60, 60, 67, 0.5);
+}
+
+.chat-ios .composer-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(118, 118, 128, 0.12);
+  color: #007aff;
+}
+
+.chat-ios .composer-send {
+  background: #007aff;
+  color: white;
+}
+
+.chat-ios .composer-send svg {
+  fill: currentColor;
+}
+
+.chat-ios .header-menu-panel {
+  right: 0;
+  min-width: 210px;
+  border-radius: 18px;
+  border: none;
+  background: rgba(248, 248, 250, 0.96);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+}
+
+.chat-ios .header-menu-panel .ghost {
+  border: none;
+  color: #111827;
+  padding: 12px 14px;
+}
+
+.chat-ios .ghost.danger {
+  color: #ff3b30;
+}
+
+@media (max-width: 420px) {
+  .ios-nav {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .ios-toolbar,
+  .ios-portals {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .ios-inbox {
+    margin-left: 6px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+  }
+
+  .ios-section-header {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* Match iOS layout to desktop color scheme and remove extra top/bottom offsets */
+.app.app-ios {
+  background: radial-gradient(circle at top, #0f1c3a 0%, #070910 45%, #03040b 100%);
+  color: var(--text);
+}
+
+.ios-nav {
+  padding: calc(env(safe-area-inset-top) + 6px) 14px 8px;
+}
+
+.ios-nav-caption {
+  color: rgba(236, 242, 255, 0.58);
+}
+
+.ios-nav-title {
+  color: #ecf2ff;
+}
+
+.ios-nav-subtitle {
+  color: rgba(236, 242, 255, 0.62);
+}
+
+.ios-signal-pill,
+.ios-profile-button,
+.ios-compose-button {
+  background: rgba(10, 18, 34, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(236, 242, 255, 0.88);
+  box-shadow: none;
+}
+
+.ios-search {
+  background: rgba(7, 12, 22, 0.82);
+  border: 1px solid rgba(120, 160, 255, 0.18);
+}
+
+.ios-search svg {
+  color: rgba(236, 242, 255, 0.5);
+}
+
+.ios-search input {
+  color: #ecf2ff;
+}
+
+.ios-search input::placeholder {
+  color: rgba(236, 242, 255, 0.48);
+}
+
+.ios-portal-chip {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(236, 242, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.ios-portal-chip.active {
+  background: linear-gradient(135deg, rgba(75, 185, 255, 0.35), rgba(111, 124, 255, 0.4));
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(106, 186, 255, 0.45);
+}
+
+.ios-inbox {
+  margin: 0;
+  border-radius: 0;
+  background: rgba(9, 14, 28, 0.84);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.ios-section-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ios-section-title {
+  color: #ecf2ff;
+}
+
+.ios-section-subtitle {
+  color: rgba(236, 242, 255, 0.6);
+}
+
+.ios-section-badge {
+  background: rgba(107, 230, 255, 0.16);
+  color: #6be6ff;
+}
+
+.ios-thread-list {
+  padding: 4px 0 8px;
+}
+
+.ios-thread-avatar {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(236, 242, 255, 0.85);
+}
+
+.ios-presence-dot {
+  border-color: rgba(10, 18, 34, 0.94);
+}
+
+.ios-thread-card:not(:last-child) .ios-thread-main,
+.ios-thread-card:not(:last-child) .ios-thread-side {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ios-thread-title {
+  color: #ecf2ff;
+}
+
+.ios-thread-time {
+  color: rgba(236, 242, 255, 0.55);
+}
+
+.ios-thread-status {
+  color: rgba(236, 242, 255, 0.64);
+}
+
+.ios-thread-preview {
+  color: rgba(236, 242, 255, 0.74);
+}
+
+.ios-thread-menu {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(236, 242, 255, 0.74);
+}
+
+.ios-thread-card.active {
+  background: rgba(107, 230, 255, 0.08);
+}
+
+.ios-empty-state {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ios-empty-state p {
+  color: #ecf2ff;
+}
+
+.ios-empty-state span {
+  color: rgba(236, 242, 255, 0.62);
+}
+
+.ios-sheet-backdrop {
+  background: rgba(6, 10, 18, 0.5);
+}
+
+.ios-sheet-card,
+.ios-sheet-cancel {
+  background: rgba(10, 18, 34, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 40px rgba(4, 8, 20, 0.4);
+}
+
+.ios-sheet-title {
+  color: rgba(236, 242, 255, 0.6);
+}
+
+.ios-sheet-action {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #6be6ff;
+}
+
+.ios-sheet-cancel {
+  color: #6be6ff;
+}
+
+.ios-sheet-input {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ecf2ff;
+}
+
+.chat.chat-ios {
+  background: rgba(9, 14, 28, 0.84);
+}
+
+.chat-ios .chat-header {
+  padding: calc(env(safe-area-inset-top) + 8px) 12px 10px;
+  background: rgba(9, 14, 28, 0.94);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chat-ios .mobile-back {
+  color: #6be6ff;
+}
+
+.chat-ios .chat-avatar,
+.chat-ios .avatar {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(236, 242, 255, 0.84);
+}
+
+.chat-ios .chat-title {
+  color: #ecf2ff;
+}
+
+.chat-ios .chat-meta {
+  color: rgba(236, 242, 255, 0.62);
+}
+
+.chat-ios .chat-icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: #6be6ff;
+}
+
+.chat-ios .chat-body {
+  background: linear-gradient(180deg, rgba(15, 28, 58, 0.32), rgba(9, 14, 28, 0.9));
+}
+
+.chat-ios .bubble {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.chat-ios .message.self .bubble {
+  background: linear-gradient(135deg, rgba(75, 185, 255, 0.32), rgba(109, 124, 255, 0.36));
+  border-color: rgba(107, 230, 255, 0.38);
+}
+
+.chat-ios .bubble p {
+  color: rgba(236, 242, 255, 0.9);
+}
+
+.chat-ios .bubble-head,
+.chat-ios .bubble-time {
+  color: rgba(236, 242, 255, 0.55);
+}
+
+.chat-ios .reply-preview,
+.chat-ios .attachment-link,
+.chat-ios .attachment-image,
+.chat-ios .composer-context,
+.chat-ios .attachment-chip {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.chat-ios .message-action-button {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(236, 242, 255, 0.74);
+}
+
+.chat-ios .composer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin-top: 0;
+  padding: 0 12px calc(8px + env(safe-area-inset-bottom));
+  background: transparent;
+  border-top: none;
+  backdrop-filter: none;
+  box-shadow: none;
+  transform: none;
+  z-index: 3;
+}
+
+.chat-ios .composer-input {
+  margin: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.chat-ios .composer-field {
+  color: #ecf2ff;
+}
+
+.chat-ios .composer-field::placeholder {
+  color: rgba(236, 242, 255, 0.5);
+}
+
+.chat-ios .composer-icon {
+  background: rgba(255, 255, 255, 0.09);
+  color: #6be6ff;
+}
+
+.chat-ios .composer-send {
+  background: linear-gradient(135deg, #4bb9ff, #2576ff);
+  color: white;
+}
+
+.chat-ios .header-menu-panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 18, 34, 0.96);
+  box-shadow: 0 20px 40px rgba(4, 8, 20, 0.4);
+}
+
+.chat-ios .header-menu-panel .ghost {
+  color: rgba(236, 242, 255, 0.88);
+}
+
+.chat-ios .chat-body,
+.chat-ios .chat-messages {
+  overflow-x: hidden;
+}
+
+.chat-ios .chat-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  padding-bottom: calc(86px + env(safe-area-inset-bottom));
+  overscroll-behavior: none;
+  touch-action: pan-y;
+}
+
+.chat-ios .chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px 12px 6px;
+}
+
+/* Final iOS chat overrides: single layout path for keyboard + composer */
+.chat.chat-ios {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-ios .chat-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  padding-bottom: 0;
+  overscroll-behavior: none;
+  touch-action: pan-y;
+}
+
+.chat-ios .chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 12px 12px
+    calc(8px + var(--ios-composer-height, 88px));
+}
+
+.chat-ios .chat-messages::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-ios .composer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin-top: 0;
+  transform: none;
+  transition: none;
+  z-index: 3;
+  padding: 0 12px 8px;
+  background: transparent;
+  border-top: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.chat-ios .composer-input {
+  margin-bottom: 0;
+}

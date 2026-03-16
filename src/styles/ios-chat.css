@@ -1,0 +1,585 @@
+.ios-chat-screen {
+  --ios-keyboard-height: 0px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding-bottom: var(--ios-keyboard-height);
+  background:
+    radial-gradient(circle at top right, rgba(75, 185, 255, 0.14), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(111, 124, 255, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(10, 16, 32, 0.98), rgba(5, 8, 18, 1));
+  color: #ecf2ff;
+  overflow: hidden;
+}
+
+.ios-chat-screen-empty {
+  justify-content: center;
+  align-items: center;
+}
+
+.ios-chat-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 10px) 14px 10px;
+  background: linear-gradient(180deg, rgba(10, 16, 32, 0.96), rgba(10, 16, 32, 0.78));
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ios-chat-header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ios-chat-back,
+.ios-chat-header-button,
+.ios-chat-message-action,
+.ios-chat-composer-button,
+.ios-chat-send,
+.ios-chat-context-action,
+.ios-chat-draft-chip button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ios-chat-back,
+.ios-chat-header-button {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #6be6ff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.ios-chat-back svg,
+.ios-chat-header-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ios-chat-thread {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ios-chat-avatar,
+.ios-chat-message-avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(75, 185, 255, 0.28), rgba(111, 124, 255, 0.34));
+  border: 1px solid rgba(107, 230, 255, 0.22);
+  color: #ecf2ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.ios-chat-avatar {
+  width: 42px;
+  height: 42px;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ios-chat-thread-copy {
+  min-width: 0;
+}
+
+.ios-chat-title,
+.ios-chat-bubble-text,
+.ios-chat-bubble-meta,
+.ios-chat-reply-copy p,
+.ios-chat-reply-copy span,
+.ios-chat-empty p,
+.ios-chat-empty span,
+.ios-chat-banner span,
+.ios-chat-statusline {
+  margin: 0;
+}
+
+.ios-chat-title {
+  font-size: 17px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ecf2ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ios-chat-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  min-width: 0;
+  font-size: 12px;
+  color: rgba(236, 242, 255, 0.58);
+}
+
+.ios-chat-presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #8e8e93;
+  flex-shrink: 0;
+}
+
+.ios-chat-presence-dot.online {
+  background: #34c759;
+}
+
+.ios-chat-presence-dot.idle {
+  background: #ff9f0a;
+}
+
+.ios-chat-presence-label,
+.ios-chat-subline {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ios-chat-actions {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ios-chat-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 210px;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 16, 32, 0.96);
+  box-shadow: 0 20px 40px rgba(4, 8, 20, 0.45);
+  backdrop-filter: blur(24px);
+}
+
+.ios-chat-menu-action {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(236, 242, 255, 0.9);
+  text-align: left;
+  padding: 12px 14px;
+}
+
+.ios-chat-menu-action-danger {
+  color: #ff7b7b;
+}
+
+.ios-chat-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(75, 185, 255, 0.08), rgba(255, 255, 255, 0));
+  color: rgba(236, 242, 255, 0.58);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.ios-chat-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 18px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scrollbar-width: none;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+}
+
+.ios-chat-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.ios-chat-empty {
+  margin: auto 0;
+  padding: 22px 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  text-align: center;
+}
+
+.ios-chat-empty p {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ecf2ff;
+}
+
+.ios-chat-empty span {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(236, 242, 255, 0.62);
+}
+
+.ios-chat-message {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 100%;
+}
+
+.ios-chat-message.is-self {
+  justify-content: flex-end;
+}
+
+.ios-chat-message-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.ios-chat-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: fit-content;
+  max-width: min(82%, 460px);
+  padding: 12px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 20px 30px rgba(0, 0, 0, 0.14);
+}
+
+.ios-chat-message.is-self .ios-chat-bubble {
+  background: linear-gradient(135deg, rgba(75, 185, 255, 0.3), rgba(109, 124, 255, 0.34));
+  border-color: rgba(107, 230, 255, 0.32);
+}
+
+.ios-chat-message-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ios-chat-message.is-self .ios-chat-message-actions {
+  justify-content: flex-end;
+}
+
+.ios-chat-message-action {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(236, 242, 255, 0.74);
+  display: grid;
+  place-items: center;
+}
+
+.ios-chat-message-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ios-chat-reply {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  text-align: left;
+}
+
+.ios-chat-reply-thumb {
+  width: 38px;
+  height: 38px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.ios-chat-reply-copy {
+  min-width: 0;
+}
+
+.ios-chat-reply-copy span {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6be6ff;
+}
+
+.ios-chat-reply-copy p {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(236, 242, 255, 0.68);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ios-chat-bubble-text {
+  font-size: 15px;
+  line-height: 1.45;
+  color: rgba(236, 242, 255, 0.92);
+  overflow-wrap: anywhere;
+}
+
+.ios-chat-attachments {
+  display: grid;
+  gap: 8px;
+}
+
+.ios-chat-attachment-preview,
+.ios-chat-file {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ios-chat-file {
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+}
+
+.ios-chat-image-frame {
+  position: relative;
+  display: block;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ios-chat-image-frame img {
+  display: block;
+  max-width: min(220px, 100%);
+  border-radius: 16px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.ios-chat-image-frame.is-loaded img {
+  opacity: 1;
+}
+
+.ios-chat-image-spinner,
+.ios-chat-status-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(236, 242, 255, 0.16);
+  border-top-color: rgba(107, 230, 255, 0.88);
+  animation: spin 0.85s linear infinite;
+}
+
+.ios-chat-image-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin-top: -8px;
+  margin-left: -8px;
+}
+
+.ios-chat-bubble-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(236, 242, 255, 0.56);
+}
+
+.ios-chat-composer-shell {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(5, 8, 18, 0), rgba(5, 8, 18, 0.92) 26%);
+  backdrop-filter: blur(10px);
+}
+
+.ios-chat-context,
+.ios-chat-draft-files,
+.ios-chat-statusline {
+  margin: 0 2px;
+}
+
+.ios-chat-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  color: rgba(236, 242, 255, 0.76);
+}
+
+.ios-chat-context-action {
+  border: none;
+  background: transparent;
+  color: #6be6ff;
+  font-weight: 700;
+}
+
+.ios-chat-draft-files {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ios-chat-draft-files::-webkit-scrollbar {
+  display: none;
+}
+
+.ios-chat-draft-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(236, 242, 255, 0.78);
+  font-size: 12px;
+}
+
+.ios-chat-draft-chip button {
+  border: none;
+  background: transparent;
+  color: rgba(236, 242, 255, 0.74);
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ios-chat-statusline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(236, 242, 255, 0.58);
+}
+
+.ios-chat-composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 10px 12px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(17, 26, 46, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 32px rgba(0, 0, 0, 0.18);
+}
+
+.ios-chat-composer-button,
+.ios-chat-send {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.ios-chat-composer-button {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  color: #6be6ff;
+}
+
+.ios-chat-composer-button svg,
+.ios-chat-send svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ios-chat-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 42px;
+  padding: 0 2px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #ecf2ff;
+  font-size: 17px;
+}
+
+.ios-chat-input::placeholder {
+  color: rgba(236, 242, 255, 0.48);
+}
+
+.ios-chat-send {
+  border: none;
+  background: linear-gradient(135deg, #4bb9ff, #2576ff);
+  color: #ffffff;
+  box-shadow: 0 12px 22px rgba(30, 118, 240, 0.32);
+}
+
+@media (max-width: 420px) {
+  .ios-chat-header {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .ios-chat-banner,
+  .ios-chat-scroll,
+  .ios-chat-composer-shell {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .ios-chat-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ios-chat-bubble {
+    max-width: 88%;
+  }
+}

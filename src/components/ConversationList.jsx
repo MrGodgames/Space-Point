@@ -10,6 +10,7 @@ function ConversationList({
   onCreateChat,
   onCreateDirect,
   onDeleteChat,
+  isMobile = false,
 }) {
   const [isCreating, setIsCreating] = useState(false);
   const [title, setTitle] = useState("");
@@ -87,21 +88,10 @@ function ConversationList({
     };
   }, [isCreateMenuOpen]);
 
-  const handleThreadContextMenu = (event, thread) => {
-    const isRightButton = event.button === 2 || (event.buttons & 2) === 2;
-    const isCtrlClick = event.button === 0 && event.ctrlKey;
-    const isContextMenuEvent = event.type === "contextmenu" || isRightButton || isCtrlClick;
-
-    if (!isContextMenuEvent) {
-      return;
-    }
-
-    event.preventDefault();
+  const openContextMenu = (thread, rawX, rawY) => {
     const menuWidth = 200;
     const menuHeight = 52;
     const containerRect = listRef.current?.getBoundingClientRect();
-    const rawX = event.clientX;
-    const rawY = event.clientY;
 
     let x = rawX;
     let y = rawY;
@@ -123,8 +113,28 @@ function ConversationList({
     setContextMenu({ x, y, thread });
   };
 
+  const handleThreadContextMenu = (event, thread) => {
+    const isRightButton = event.button === 2 || (event.buttons & 2) === 2;
+    const isCtrlClick = event.button === 0 && event.ctrlKey;
+    const isContextMenuEvent =
+      event.type === "contextmenu" || isRightButton || isCtrlClick;
+
+    if (!isContextMenuEvent) {
+      return;
+    }
+
+    event.preventDefault();
+    openContextMenu(thread, event.clientX, event.clientY);
+  };
+
+  const handleThreadMenuClick = (event, thread) => {
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    openContextMenu(thread, rect.right, rect.bottom);
+  };
+
   return (
-    <section className="stack">
+    <section className={`stack ${isMobile ? "stack-mobile" : ""}`}>
       <header className="stack-header">
         <div>
           <p className="section-title">Диалоги</p>
@@ -261,6 +271,21 @@ function ConversationList({
                 </div>
                 {thread.unread > 0 && (
                   <span className="thread-unread">{thread.unread}</span>
+                )}
+                {isMobile && (
+                  <button
+                    className="thread-overflow"
+                    type="button"
+                    aria-label={`Действия для чата ${thread.title}`}
+                    onClick={(event) => handleThreadMenuClick(event, thread)}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path
+                        d="M12 6a1.75 1.75 0 1 0 0 .01V6zm0 5.25a1.75 1.75 0 1 0 0 .01v-.01zM12 16.5a1.75 1.75 0 1 0 0 .01v-.01z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </button>
                 )}
                 <button
                   className="thread-action"

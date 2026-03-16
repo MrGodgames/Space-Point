@@ -1,4 +1,6 @@
 import "./App.css";
+import "./styles/mobile-ios.css";
+import "./styles/ios-chat.css";
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import Backdrop from "./components/Backdrop";
@@ -7,6 +9,9 @@ import ConversationList from "./components/ConversationList";
 import ChatPanel from "./components/ChatPanel";
 import AccountModal from "./components/AccountModal";
 import UserModal from "./components/UserModal";
+import IOSHome from "./mobile/IOSHome";
+import IOSChatPanel from "./mobile/IOSChatPanel";
+import { useIsMobileViewport } from "./hooks/useIsMobileViewport";
 import { api } from "./api/client";
 import { quickActions } from "./data/mockData";
 
@@ -26,7 +31,6 @@ const formatTime = (date = new Date()) =>
   });
 
 const INACTIVITY_THRESHOLD_MS = 4 * 60 * 1000;
-
 const formatRelativeTime = (timestamp, now = Date.now()) => {
   if (!timestamp) {
     return "недавно";
@@ -77,6 +81,8 @@ const getPresenceMeta = (presence, now = Date.now()) => {
 };
 
 function App() {
+  const isMobileViewport = useIsMobileViewport();
+  const [mobileView, setMobileView] = useState("inbox");
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isAuth, setIsAuth] = useState(false);
@@ -129,6 +135,12 @@ function App() {
     }, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport || !activeThreadId) {
+      setMobileView("inbox");
+    }
+  }, [activeThreadId, isMobileViewport]);
 
   const handleCheckSpeed = async () => {
     if (isSpeedChecking) {
@@ -498,12 +510,47 @@ function App() {
     setEmailValue("");
     setFirstNameValue("");
     setLastNameValue("");
+    setMobileView("inbox");
+  };
+
+  const handleSelectThread = (threadId) => {
+    setActiveThreadId(threadId);
+    if (isMobileViewport) {
+      setMobileView("chat");
+    }
   };
 
   const handleProfileUpdate = async (payload) => {
     const data = await api.updateProfile(payload);
     setUser(data.user);
     setAccount(formatAccount(data.user));
+  };
+
+  const handleOpenSettings = () => {
+    setIsAccountOpen(true);
+  };
+
+  const handleAddMember = () => {
+    setIsAddMemberOpen(true);
+  };
+
+  const handleCreateChat = async (title) => {
+    try {
+      const result = await api.createChat(title);
+      await loadChats(result.chat?.id);
+      if (result.chat?.id) {
+        setActiveThreadId(result.chat.id);
+        if (isMobileViewport) {
+          setMobileView("chat");
+        }
+      }
+    } catch (error) {
+      // ignore
+    }
+  };
+
+  const handleOpenDirect = () => {
+    setIsDirectOpen(true);
   };
 
   const handleSendMessage = async (content, replyTo, attachments = []) => {
@@ -671,6 +718,9 @@ function App() {
 
       if (targetChatId === activeThreadId) {
         setMessages([]);
+        if (isMobileViewport) {
+          setMobileView("inbox");
+        }
       }
     } catch (error) {
       console.error("[chat:leave] failed", {
@@ -791,53 +841,81 @@ function App() {
     );
   }
 
-  return (
-    <div className="app">
-      <Backdrop />
+  const chatPanelProps = {
+    messages,
+    thread: activeThread,
+    isLoading: isChatLoading,
+    presenceMeta: activePresenceMeta,
+    onSend: handleSendMessage,
+    onUpload: handleUploadFiles,
+    onEdit: handleEditMessage,
+    onDelete: handleDeleteMessage,
+    onAddMember: handleAddMember,
+    onTyping: handleTyping,
+    typingUsers: activeTyping,
+    currentUserId: user?.id,
+    onDeleteChat: handleDeleteChat,
+  };
 
-      <main className="shell">
-        <NavigationRail
-          quickActions={quickActions}
-          account={account}
-          connectionSpeedMbps={connectionSpeedMbps}
-          isSpeedChecking={isSpeedChecking}
-          onCheckSpeed={handleCheckSpeed}
-          onOpenSettings={() => setIsAccountOpen(true)}
-        />
-        <ConversationList
-          threads={threads}
-          activeId={activeThread?.id}
-          presenceByUser={presenceByUser}
-          presenceNow={presenceNow}
-          getPresenceMeta={getPresenceMeta}
-          onSelect={setActiveThreadId}
-          onCreateChat={async (title) => {
-            try {
-              const result = await api.createChat(title);
-              await loadChats(result.chat?.id);
-              setActiveThreadId(result.chat?.id ?? activeThreadId);
-            } catch (error) {
-              // ignore
-            }
-          }}
-          onCreateDirect={() => setIsDirectOpen(true)}
-          onDeleteChat={handleDeleteChat}
-        />
-        <ChatPanel
-          messages={messages}
-          thread={activeThread}
-          isLoading={isChatLoading}
-          presenceMeta={activePresenceMeta}
-          onSend={handleSendMessage}
-          onUpload={handleUploadFiles}
-          onEdit={handleEditMessage}
-          onDelete={handleDeleteMessage}
-          onAddMember={() => setIsAddMemberOpen(true)}
-          onTyping={handleTyping}
-          typingUsers={activeTyping}
-          currentUserId={user?.id}
-          onDeleteChat={handleDeleteChat}
-        />
+  const conversationListProps = {
+    threads,
+    activeId: activeThread?.id,
+    presenceByUser,
+    presenceNow,
+    getPresenceMeta,
+    onSelect: handleSelectThread,
+    onCreateChat: handleCreateChat,
+    onCreateDirect: handleOpenDirect,
+    onDeleteChat: handleDeleteChat,
+    isMobile: isMobileViewport,
+  };
+
+  return (
+    <div className={`app ${isMobileViewport ? "app-ios" : ""}`}>
+      {!isMobileViewport && <Backdrop />}
+
+      <main
+        className={`shell ${isMobileViewport ? "shell-mobile shell-ios" : ""}`}
+      >
+        {isMobileViewport ? (
+          mobileView === "chat" && activeThread ? (
+            <IOSChatPanel
+              {...chatPanelProps}
+              onBack={() => setMobileView("inbox")}
+            />
+          ) : (
+            <IOSHome
+              account={account}
+              quickActions={quickActions}
+              threads={threads}
+              activeId={activeThread?.id}
+              presenceByUser={presenceByUser}
+              presenceNow={presenceNow}
+              getPresenceMeta={getPresenceMeta}
+              connectionSpeedMbps={connectionSpeedMbps}
+              isSpeedChecking={isSpeedChecking}
+              onCheckSpeed={handleCheckSpeed}
+              onOpenSettings={handleOpenSettings}
+              onSelect={handleSelectThread}
+              onCreateChat={handleCreateChat}
+              onCreateDirect={handleOpenDirect}
+              onDeleteChat={handleDeleteChat}
+            />
+          )
+        ) : (
+          <>
+            <NavigationRail
+              quickActions={quickActions}
+              account={account}
+              connectionSpeedMbps={connectionSpeedMbps}
+              isSpeedChecking={isSpeedChecking}
+              onCheckSpeed={handleCheckSpeed}
+              onOpenSettings={handleOpenSettings}
+            />
+            <ConversationList {...conversationListProps} isMobile={false} />
+            <ChatPanel {...chatPanelProps} />
+          </>
+        )}
       </main>
       <AccountModal
         account={account}
@@ -855,7 +933,12 @@ function App() {
         onSubmit={async (login) => {
           const result = await api.createDirectChat(login);
           await loadChats(result.chat?.id);
-          setActiveThreadId(result.chat?.id ?? activeThreadId);
+          if (result.chat?.id) {
+            setActiveThreadId(result.chat.id);
+            if (isMobileViewport) {
+              setMobileView("chat");
+            }
+          }
         }}
       />
       <UserModal

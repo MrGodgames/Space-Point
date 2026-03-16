@@ -7,6 +7,7 @@ function NavigationRail({
   isSpeedChecking,
   onCheckSpeed,
   onOpenSettings,
+  isMobile = false,
 }) {
   const actionIcons = {
     Пульс:
@@ -43,6 +44,83 @@ function NavigationRail({
 
     onCheckSpeed?.();
   }, [showConnectionSpeed, onCheckSpeed]);
+
+  if (isMobile) {
+    return (
+      <section className="rail rail-mobile">
+        <div className="rail-mobile-top">
+          <div className="rail-brand">
+            <span className="brand-mark" aria-hidden>
+              SP
+            </span>
+            <div>
+              <p className="brand-title">Space-Point</p>
+              <p className="brand-sub">Мобильный узел</p>
+            </div>
+          </div>
+          <button
+            className="ghost rail-mobile-settings"
+            type="button"
+            onClick={onOpenSettings}
+          >
+            Профиль
+          </button>
+        </div>
+
+        <div className="rail-mobile-summary">
+          {account && (
+            <div className="account-info">
+              <div className="avatar">
+                {account.name
+                  .split(" ")
+                  .map((part) => part[0])
+                  .join("")}
+              </div>
+              <div>
+                <p className="account-name">{account.name}</p>
+                <p className="account-handle">{account.handle}</p>
+              </div>
+            </div>
+          )}
+          <button
+            className="signal-inline"
+            type="button"
+            onClick={toggleConnectionSpeed}
+          >
+            <span>Сигнал</span>
+            <strong>{signalPercentLabel}</strong>
+            <small>
+              {showConnectionSpeed
+                ? isSpeedChecking
+                  ? "Измерение..."
+                  : connectionSpeed
+                : "Проверить"}
+            </small>
+          </button>
+        </div>
+
+        <div className="rail-mobile-actions">
+          {quickActions.map((item, index) => (
+            <button
+              key={item}
+              className={`rail-button rail-pill ${index === 0 ? "active" : ""}`}
+              type="button"
+            >
+              <span className="rail-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d={actionIcons[item] || "M12 4v16"}
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+              {item}
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <aside className="rail">
