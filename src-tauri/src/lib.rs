@@ -72,6 +72,7 @@ pub fn run() {
 
             Ok(())
         })
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet, ios_refresh_webviews])
         .run(tauri::generate_context!())

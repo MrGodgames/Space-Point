@@ -14,6 +14,7 @@ import IOSChatPanel from "./mobile/IOSChatPanel";
 import { useIsMobileViewport } from "./hooks/useIsMobileViewport";
 import { api } from "./api/client";
 import { quickActions } from "./data/mockData";
+import { primeNotifications, showDesktopNotification } from "./utils/notifications";
 
 const SOCKET_URL =
   import.meta.env.VITE_API_URL || "http://46.138.243.148:4000";
@@ -110,6 +111,13 @@ function App() {
   const socketRef = useRef(null);
   const activeThreadIdRef = useRef(null);
   const userRef = useRef(null);
+  const threadsRef = useRef([]);
+  const isWindowFocusedRef = useRef(
+    typeof document === "undefined"
+      ? true
+      : document.visibilityState === "visible" && document.hasFocus()
+  );
+  const notifiedMessageIdsRef = useRef(new Set());
   const bootstrapStartedRef = useRef(false);
 
   const activeThread =
@@ -128,6 +136,74 @@ function App() {
   useEffect(() => {
     userRef.current = user;
   }, [user]);
+
+  useEffect(() => {
+    threadsRef.current = threads;
+  }, [threads]);
+
+  useEffect(() => {
+    const updateWindowFocus = () => {
+      isWindowFocusedRef.current =
+        document.visibilityState === "visible" && document.hasFocus();
+    };
+
+    updateWindowFocus();
+    window.addEventListener("focus", updateWindowFocus);
+    window.addEventListener("blur", updateWindowFocus);
+    document.addEventListener("visibilitychange", updateWindowFocus);
+
+    return () => {
+      window.removeEventListener("focus", updateWindowFocus);
+      window.removeEventListener("blur", updateWindowFocus);
+      document.removeEventListener("visibilitychange", updateWindowFocus);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuth) {
+      return;
+    }
+
+    primeNotifications().catch(() => {});
+  }, [isAuth]);
+
+  const notifyAboutMessage = async (chatId, message) => {
+    if (!message?.id) {
+      return;
+    }
+
+    if (notifiedMessageIdsRef.current.has(message.id)) {
+      return;
+    }
+
+    notifiedMessageIdsRef.current.add(message.id);
+    if (notifiedMessageIdsRef.current.size > 500) {
+      const first = notifiedMessageIdsRef.current.values().next().value;
+      if (first) {
+        notifiedMessageIdsRef.current.delete(first);
+      }
+    }
+
+    const currentChatId = activeThreadIdRef.current;
+    const isChatOpened = chatId === currentChatId;
+    const isFocused = isWindowFocusedRef.current;
+    if (isChatOpened && isFocused) {
+      return;
+    }
+
+    const chatTitle =
+      threadsRef.current.find((thread) => thread.id === chatId)?.title ||
+      "Новое сообщение";
+    const author = message.author || "Новое сообщение";
+    const text =
+      message.content?.trim() ||
+      (message.attachments?.length ? "Вложение" : "Откройте чат");
+
+    await showDesktopNotification({
+      title: chatTitle,
+      body: `${author}: ${text}`,
+    });
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -267,6 +343,10 @@ function App() {
         if (!isSelf) {
           socket.emit("read_messages", { chatId });
         }
+      }
+
+      if (!isSelf) {
+        notifyAboutMessage(chatId, message).catch(() => {});
       }
     });
 
