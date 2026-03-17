@@ -247,6 +247,7 @@
   align-items: flex-end;
   gap: 10px;
   max-width: 100%;
+  -webkit-touch-callout: none;
 }
 
 .ios-chat-message.is-self {
@@ -278,9 +279,24 @@
     0 20px 30px rgba(0, 0, 0, 0.14);
 }
 
+.ios-chat-bubble.is-media-only {
+  gap: 0;
+  padding: 0;
+  max-width: min(76vw, 340px);
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  position: relative;
+}
+
 .ios-chat-message.is-self .ios-chat-bubble {
   background: linear-gradient(135deg, rgba(75, 185, 255, 0.3), rgba(109, 124, 255, 0.34));
   border-color: rgba(107, 230, 255, 0.32);
+}
+
+.ios-chat-message.is-self .ios-chat-bubble.is-media-only {
+  background: transparent;
+  border-color: transparent;
 }
 
 .ios-chat-message-actions {
@@ -354,11 +370,22 @@
   line-height: 1.45;
   color: rgba(236, 242, 255, 0.92);
   overflow-wrap: anywhere;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .ios-chat-attachments {
   display: grid;
   gap: 8px;
+}
+
+.ios-chat-attachments.is-media-only {
+  gap: 4px;
+}
+
+.ios-chat-attachment {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .ios-chat-attachment-preview,
@@ -368,6 +395,15 @@
   max-width: 100%;
   color: inherit;
   text-decoration: none;
+}
+
+.ios-chat-attachment-preview {
+  padding: 0;
+  border: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
 }
 
 .ios-chat-file {
@@ -381,17 +417,30 @@
 .ios-chat-image-frame {
   position: relative;
   display: block;
-  border-radius: 16px;
+  width: fit-content;
+  max-width: min(76vw, 340px);
+  border-radius: 18px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(9, 15, 27, 0.2);
 }
 
 .ios-chat-image-frame img {
   display: block;
-  max-width: min(220px, 100%);
-  border-radius: 16px;
+  width: auto;
+  height: auto;
+  max-width: min(76vw, 340px);
+  max-height: min(62vh, 440px);
+  border-radius: inherit;
   opacity: 0;
   transition: opacity 0.18s ease;
+}
+
+.ios-chat-bubble.is-media-only .ios-chat-attachment,
+.ios-chat-bubble.is-media-only .ios-chat-attachment-preview,
+.ios-chat-bubble.is-media-only .ios-chat-image-frame,
+.ios-chat-bubble.is-media-only .ios-chat-image-frame img {
+  width: 100%;
+  max-width: 100%;
 }
 
 .ios-chat-image-frame.is-loaded img {
@@ -422,6 +471,21 @@
   gap: 6px;
   font-size: 11px;
   color: rgba(236, 242, 255, 0.56);
+}
+
+.ios-chat-bubble-meta.is-overlay {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: rgba(236, 242, 255, 0.9);
+  background: rgba(8, 13, 24, 0.58);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .ios-chat-composer-shell {

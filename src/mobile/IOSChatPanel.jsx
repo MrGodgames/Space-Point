@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 
+const LONG_PRESS_DURATION_MS = 450;
+const LONG_PRESS_MOVE_THRESHOLD_PX = 12;
+
 const getInitials = (value = "") =>
   value
     .split(" ")
@@ -37,6 +40,7 @@ function IOSChatPanel({
   const [loadedImages, setLoadedImages] = useState({});
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [activeMessageActionsId, setActiveMessageActionsId] = useState(null);
   const screenRef = useRef(null);
   const typingTimeout = useRef(null);
   const fileInputRef = useRef(null);
@@ -48,6 +52,55 @@ function IOSChatPanel({
   const prevThreadId = useRef(thread?.id);
   const scrollTopRef = useRef(0);
   const bottomDeltaRef = useRef(0);
+  const messageLongPressTimerRef = useRef(null);
+  const messageTouchStartRef = useRef(null);
+
+  const clearMessageLongPressTimer = () => {
+    if (messageLongPressTimerRef.current) {
+      clearTimeout(messageLongPressTimerRef.current);
+      messageLongPressTimerRef.current = null;
+    }
+  };
+
+  const startMessageLongPress = (messageId, event) => {
+    const touch = event.touches?.[0];
+    if (!touch || messageId == null) {
+      return;
+    }
+
+    messageTouchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+
+    clearMessageLongPressTimer();
+    messageLongPressTimerRef.current = setTimeout(() => {
+      setActiveMessageActionsId(messageId);
+      clearMessageLongPressTimer();
+    }, LONG_PRESS_DURATION_MS);
+  };
+
+  const handleMessageTouchMove = (event) => {
+    if (!messageTouchStartRef.current) {
+      return;
+    }
+    const touch = event.touches?.[0];
+    if (!touch) {
+      return;
+    }
+
+    const deltaX = Math.abs(touch.clientX - messageTouchStartRef.current.x);
+    const deltaY = Math.abs(touch.clientY - messageTouchStartRef.current.y);
+    if (deltaX > LONG_PRESS_MOVE_THRESHOLD_PX || deltaY > LONG_PRESS_MOVE_THRESHOLD_PX) {
+      clearMessageLongPressTimer();
+      messageTouchStartRef.current = null;
+    }
+  };
+
+  const endMessageLongPress = () => {
+    clearMessageLongPressTimer();
+    messageTouchStartRef.current = null;
+  };
 
   useEffect(() => {
     if (!isHeaderMenuOpen) {
@@ -72,6 +125,7 @@ function IOSChatPanel({
 
   useEffect(() => {
     return () => {
+      clearMessageLongPressTimer();
       if (typingTimeout.current) {
         clearTimeout(typingTimeout.current);
       }
@@ -225,7 +279,29 @@ function IOSChatPanel({
     setIsPreviewLoading(false);
     setLoadedImages({});
     setIsAtBottom(true);
+    setActiveMessageActionsId(null);
   }, [thread?.id]);
+
+  useEffect(() => {
+    if (activeMessageActionsId == null) {
+      return;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+      if (event.target.closest(".ios-chat-message")) {
+        return;
+      }
+      setActiveMessageActionsId(null);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [activeMessageActionsId]);
 
   useEffect(() => {
     if (!editTarget) {
@@ -397,7 +473,13 @@ function IOSChatPanel({
       <div
         className="ios-chat-scroll"
         ref={scrollRef}
-        onTouchStart={() => {
+        onTouchStart={(event) => {
+          if (
+            event.target instanceof Element &&
+            !event.target.closest(".ios-chat-message-actions")
+          ) {
+            setActiveMessageActionsId(null);
+          }
           if (document.activeElement === inputRef.current) {
             inputRef.current?.blur();
           }
@@ -414,6 +496,7 @@ function IOSChatPanel({
           </div>
         ) : (
           messages.map((message) => {
+            const attachmentList = message.attachments || [];
             const isSelfById =
               currentUserId != null &&
               message.user_id != null &&
@@ -426,11 +509,22 @@ function IOSChatPanel({
             );
             const replyText =
               message.reply?.content || (replyImage ? "Вложение" : "");
+            const hasOnlyImageAttachments =
+              attachmentList.length > 0 &&
+              attachmentList.every((file) => file.mime_type?.startsWith("image/"));
+            const isMediaOnlyMessage =
+              hasOnlyImageAttachments && !message.content && !message.reply;
+            const isActionsVisible = activeMessageActionsId === message.id;
 
             return (
               <article
                 key={message.id ?? `${message.author}-${message.time}`}
                 className={`ios-chat-message ${isSelf ? "is-self" : ""}`}
+                onContextMenu={(event) => event.preventDefault()}
+                onTouchStart={(event) => startMessageLongPress(message.id, event)}
+                onTouchMove={handleMessageTouchMove}
+                onTouchEnd={endMessageLongPress}
+                onTouchCancel={endMessageLongPress}
                 ref={(node) => {
                   if (message.id == null) {
                     return;
@@ -447,94 +541,103 @@ function IOSChatPanel({
                     {getInitials(message.author)}
                   </div>
                 )}
-                <div className="ios-chat-bubble">
-                  <div className="ios-chat-message-actions">
-                    <button
-                      className="ios-chat-message-action"
-                      type="button"
-                      aria-label="Ответить"
-                      onClick={() =>
-                        setReplyTo({
-                          id: message.id,
-                          author: message.author,
-                          content: message.content,
-                        })
-                      }
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path
-                          d="M10 7V4L3 11l7 7v-3h6a5 5 0 0 0 5-5V9"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </button>
-                    {isSelf && (
-                      <>
-                        <button
-                          className="ios-chat-message-action"
-                          type="button"
-                          aria-label="Редактировать"
-                          onClick={() =>
-                            setEditTarget({
-                              id: message.id,
-                              content: message.content,
-                            })
-                          }
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path
-                              d="M3 17.25V21h3.75L18.5 9.25l-3.75-3.75L3 17.25z"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M14.75 5.5l3.75 3.75"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          className="ios-chat-message-action"
-                          type="button"
-                          aria-label="Удалить"
-                          onClick={() => onDelete?.(message.id)}
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path
-                              d="M4 7h16"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                            />
-                            <path
-                              d="M9 7V5h6v2"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                            />
-                            <path
-                              d="M7 7l1 12h8l1-12"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                      </>
-                    )}
-                  </div>
+                <div
+                  className={`ios-chat-bubble ${isMediaOnlyMessage ? "is-media-only" : ""}`}
+                >
+                  {isActionsVisible && (
+                    <div className="ios-chat-message-actions">
+                      <button
+                        className="ios-chat-message-action"
+                        type="button"
+                        aria-label="Ответить"
+                        onClick={() => {
+                          setActiveMessageActionsId(null);
+                          setReplyTo({
+                            id: message.id,
+                            author: message.author,
+                            content: message.content,
+                          });
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                          <path
+                            d="M10 7V4L3 11l7 7v-3h6a5 5 0 0 0 5-5V9"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                      {isSelf && (
+                        <>
+                          <button
+                            className="ios-chat-message-action"
+                            type="button"
+                            aria-label="Редактировать"
+                            onClick={() => {
+                              setActiveMessageActionsId(null);
+                              setEditTarget({
+                                id: message.id,
+                                content: message.content,
+                              });
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path
+                                d="M3 17.25V21h3.75L18.5 9.25l-3.75-3.75L3 17.25z"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M14.75 5.5l3.75 3.75"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            className="ios-chat-message-action"
+                            type="button"
+                            aria-label="Удалить"
+                            onClick={() => {
+                              setActiveMessageActionsId(null);
+                              onDelete?.(message.id);
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                              <path
+                                d="M4 7h16"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d="M9 7V5h6v2"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                              <path
+                                d="M7 7l1 12h8l1-12"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {message.reply && (
                     <button
@@ -578,9 +681,13 @@ function IOSChatPanel({
 
                   {message.content && <p className="ios-chat-bubble-text">{message.content}</p>}
 
-                  {message.attachments?.length > 0 && (
-                    <div className="ios-chat-attachments">
-                      {message.attachments.map((file) => (
+                  {attachmentList.length > 0 && (
+                    <div
+                      className={`ios-chat-attachments ${
+                        isMediaOnlyMessage ? "is-media-only" : ""
+                      }`}
+                    >
+                      {attachmentList.map((file) => (
                         <div key={file.object_key} className="ios-chat-attachment">
                           {file.mime_type.startsWith("image/") ? (
                             <button
@@ -633,7 +740,11 @@ function IOSChatPanel({
                     </div>
                   )}
 
-                  <div className="ios-chat-bubble-meta">
+                  <div
+                    className={`ios-chat-bubble-meta ${
+                      isMediaOnlyMessage ? "is-overlay" : ""
+                    }`}
+                  >
                     <span>{message.time}</span>
                     {message.edited_at && <span>изменено</span>}
                     {isSelf && (
