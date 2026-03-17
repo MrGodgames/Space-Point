@@ -14,10 +14,22 @@ const request = async (path, options = {}) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (error) {
+    const message =
+      API_URL.startsWith("http://")
+        ? "Сеть недоступна или macOS блокирует небезопасный HTTP. Укажите HTTPS API URL."
+        : "Сервер недоступен. Проверьте интернет и адрес API.";
+    const wrapped = new Error(message);
+    wrapped.cause = error;
+    wrapped.path = path;
+    throw wrapped;
+  }
 
   const data = await response.json().catch(() => ({}));
 
