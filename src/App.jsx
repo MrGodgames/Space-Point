@@ -118,6 +118,7 @@ function App() {
       : document.visibilityState === "visible" && document.hasFocus()
   );
   const notifiedMessageIdsRef = useRef(new Set());
+  const notificationPermissionRequestedRef = useRef(false);
   const bootstrapStartedRef = useRef(false);
 
   const activeThread =
@@ -158,14 +159,6 @@ function App() {
       document.removeEventListener("visibilitychange", updateWindowFocus);
     };
   }, []);
-
-  useEffect(() => {
-    if (!isAuth) {
-      return;
-    }
-
-    primeNotifications().catch(() => {});
-  }, [isAuth]);
 
   const notifyAboutMessage = async (chatId, message) => {
     if (!message?.id) {
@@ -448,6 +441,10 @@ function App() {
     };
 
     const handleActivity = () => {
+      if (!notificationPermissionRequestedRef.current) {
+        notificationPermissionRequestedRef.current = true;
+        primeNotifications().catch(() => {});
+      }
       sendPing();
     };
 

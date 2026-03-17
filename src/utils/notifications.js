@@ -53,15 +53,25 @@ export const showDesktopNotification = async ({ title, body }) => {
 
   const plugin = await loadNotificationPlugin();
   if (plugin) {
-    const granted = await plugin.isPermissionGranted();
+    let granted = await plugin.isPermissionGranted();
+    if (!granted) {
+      const permission = await plugin.requestPermission();
+      granted = permission === "granted";
+    }
     if (!granted) {
       return false;
     }
-    await plugin.sendNotification({ title: safeTitle, body: safeBody });
+    plugin.sendNotification({ title: safeTitle, body: safeBody });
     return true;
   }
 
-  if (isBrowserNotificationSupported() && Notification.permission === "granted") {
+  if (isBrowserNotificationSupported()) {
+    if (Notification.permission !== "granted") {
+      const granted = await requestBrowserPermission();
+      if (!granted) {
+        return false;
+      }
+    }
     new Notification(safeTitle, { body: safeBody });
     return true;
   }
